@@ -8,7 +8,7 @@
 - [x] Draft README, HTTP contract, guarantees, architecture, and failure scenarios.
 - [ ] Review and freeze key validation, request scoping and fingerprint algorithm.
 - [ ] Decide open questions: JSON canonicalization, error schema, retention/replay policy, uncertain outcomes.
-- [ ] Define machine-readable scenarios and golden test vectors for .NET + NestJS.
+- [x] Add shared golden vectors for scoped identity and request fingerprinting; run both languages against them.
 - [ ] Decide repository license and release/versioning policy.
 
 **Exit:** a reviewable v1 protocol/spec with test fixtures and explicit exclusions.
@@ -18,10 +18,10 @@
 - [x] Add a native .NET 10 solution with core, ASP.NET Core, PostgreSQL, unit-test and sample projects.
 - [x] Add an npm workspace with NestJS 12, core, NestJS adapter, PostgreSQL adapter and a sample API.
 - [x] Add initial scaffold tests and GitHub Actions workflow.
-- [ ] Verify that both ecosystems build and tests pass on CI; fix issues and record results.
+- [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The code is **scaffold-only**, with no actual HTTP idempotency enforcement.
+The core now implements scope/fingerprint calculations, but there is **no HTTP idempotency enforcement**, database coordination, or response replay.
 
 ## Phase 1 — .NET Standard mode
 
