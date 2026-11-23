@@ -1,5 +1,5 @@
-export { IdempotencyKitModule } from "./idempotency-options.js";
+export { IdempotencyKitModule } from "./idempotencykit.module.js";
+export { Idempotent } from "./idempotent.decorator.js";
 export type {
   IdempotencyKitOptions, IdempotencyHttpRequest, IdempotencyCallerScope,
-} from "./idempotencykit.module.js";
-export { Idempotent } from "./idempotent.decorator.js";
+} from "./idempotency-options.js";
