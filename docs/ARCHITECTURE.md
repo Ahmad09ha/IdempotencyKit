@@ -1,6 +1,6 @@
 # Architecture and design decisions (draft)
 
-> This is a **proposed** system architecture, not a description of software that already runs.
+> **Mixed implementation state:** the .NET and NestJS/Express Standard-mode HTTP adapters, fingerprint cores, PostgreSQL stores and integration tests now exist. The **Transactional mode**, generalized engine abstractions, Fastify support, crash labs and production release processes remain proposed. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md).
 
 ## Goals
 

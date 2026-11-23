@@ -1,6 +1,6 @@
 # Security and Operations Plan (draft)
 
-> This is a pre-implementation checklist. None of these protections is asserted as implemented.
+> This remains a release-readiness checklist. Some controls are implemented in the Standard-mode PostgreSQL and HTTP adapters (scoped SHA-256 keys, auth ordering, bounded JSON replay, safe-header allowlists), but stronger transactional guarantees, standardized errors, full authorization review, crash testing and operational reconciliation are **not** complete. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md).
 
 ## Security requirements
 

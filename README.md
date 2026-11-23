@@ -199,7 +199,7 @@ npm test
 npm run start:orders
 ~~~
 
-The NestJS sample serves `http://localhost:3000/health`. The .NET sample serves `/health` on the local URL printed by ASP.NET Core. Both report `scaffold-only`.
+The NestJS sample serves `http://localhost:3000/health`. The .NET sample serves `/health` on the local URL printed by ASP.NET Core. Both report `sample-health-only` because neither demo hosts a protected write endpoint by default.
 
 The initial TypeScript scaffold has no `package-lock.json` because registry access was unavailable during creation; commit a lockfile after a successful install and then switch CI to `npm ci`.
 

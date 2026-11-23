@@ -45,6 +45,7 @@ This is **Standard-mode uncertainty**, not a safe retry. If the lease expires be
 - `TryClaim`: unique insert or read the matching record and resolve a result. If the processing lease expired, it attempts an atomic update to `uncertain`.
 - `TryComplete`: sets `completed` and persists a bounded response only if the fingerprint matches, the owner token is current and the lease is **still valid**. Returns `false` if a race/lost lease blocks completion.
 - `TryExtendLease`: renews only the current, unexpired lease; a late heartbeat cannot resurrect an expired lease.
+- `TryMarkUncertain`: explicitly marks an owned processing record uncertain when the HTTP handler fails, produces an unsupported result, or persistence is ambiguous. It never makes the business operation safe to reexecute.
 - `PurgeExpiredCompleted`: deletes expired **completed** records in limited batches using `FOR UPDATE SKIP LOCKED`. Never deletes processing/uncertain records automatically.
 
 Every operation uses parameterized SQL; neither adapter creates tables in request paths.
