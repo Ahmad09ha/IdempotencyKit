@@ -9,5 +9,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/IdempotencyKit.Core.Tests/IdempotencyKit.Core.Tests.csproj" />
+    <Project Path="tests/IdempotencyKit.Postgres.Tests/IdempotencyKit.Postgres.Tests.csproj" />
   </Folder>
 </Solution>
