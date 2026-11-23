@@ -1,0 +1,134 @@
+# -----------------------------------------------------------------------------
+# IdempotencyKit monorepo: .NET, TypeScript / NestJS, tools, and local environments
+# Keep lockfiles, migrations, source, example env files, and versioned configs.
+# -----------------------------------------------------------------------------
+
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
+
+# Editors / IDE
+.idea/
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.sln.iml
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+*.iml
+
+# .NET, Rider and tooling
+**/bin/
+**/obj/
+TestResults/
+**/TestResults/
+*.nupkg
+*.snupkg
+*.pdb
+*.cache
+coverage/
+**/coverage/
+*.coverage
+*.coveragexml
+*.trx
+artifacts/
+publish/
+*.binlog
+*.buildlog
+.project.assets.json
+
+# Node.js / NestJS / TypeScript
+node_modules/
+**/node_modules/
+.pnpm-store/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+dist/
+**/dist/
+build/
+**/build/
+.turbo/
+.nx/
+.next/
+out/
+*.tsbuildinfo
+.nyc_output/
+coverage-final.json
+*.lcov
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Python helper scripts / test tools
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets, credentials and environment overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
+*.pem
+*.p12
+*.pfx
+*.key
+secrets/
+**/secrets/
+**/appsettings.*.local.json
+**/appsettings.Local.json
+**/appsettings.Development.local.json
+**/appsettings.Production.local.json
+**/appsettings.*.secrets.json
+
+# Databases / local volumes
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+postgres-data/
+redis-data/
+docker-data/
+tmp/
+temp/
+.cache/
+.local-test/
+
+# Logs and temporary artifacts
+*.log
+logs/
+**/logs/
+*.tmp
+*.temp
+*.bak
+*.orig
+*.pid
+*.seed
+
+# Do NOT ignore: package-lock.json, pnpm-lock.yaml, yarn.lock, *.slnx,
+# global.json, Directory.Packages.props, migrations, appsettings.json,
+# .env.example, Dockerfiles, or source/configuration under version control.
