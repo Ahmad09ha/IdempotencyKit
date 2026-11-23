@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>Explicit same-transaction EF Core + PostgreSQL bridge for IdempotencyKit.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.4" />
+    <ProjectReference Include="../IdempotencyKit.Postgres/IdempotencyKit.Postgres.csproj" />
+  </ItemGroup>
+</Project>
