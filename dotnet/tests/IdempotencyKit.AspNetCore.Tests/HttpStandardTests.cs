@@ -200,7 +200,8 @@ public sealed class HttpStandardTests(PostgresHttpFixture fixture) : IClassFixtu
                                 RETURNING id
                                 """, connection, transaction);
                             insert.Parameters.AddWithValue("key", "http-tx-" + http.User.FindFirst(
-                                ClaimTypes.NameIdentifier)?.Value);
+                                ClaimTypes.NameIdentifier)?.Value + "-" +
+                                http.Request.Headers["Idempotency-Key"].ToString());
                             insert.Parameters.AddWithValue("quantity", dto.Quantity);
                             var rowId = (long)(await insert.ExecuteScalarAsync(ct))!;
                             return new StoredHttpResponse(
@@ -437,7 +438,7 @@ public sealed class HttpStandardTests(PostgresHttpFixture fixture) : IClassFixtu
         Assert.Equal(first.Headers.Location, second.Headers.Location);
         Assert.Equal(1, a.Created);
         Assert.Equal(0, b.Created);
-        Assert.Equal(1L, await CountTransactionalOrders("http-tx-alice"));
+        Assert.Equal(1L, await CountTransactionalOrders("http-tx-alice-" + key));
 
         using var mismatch = await secondClient.SendAsync(
             Post("/orders/transactional", key, """{"productId":50,"quantity":3}"""));
