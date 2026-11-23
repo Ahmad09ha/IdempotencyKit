@@ -80,10 +80,14 @@ public sealed class TestHeaderAuthHandler(
 public sealed class PostgresHttpFixture : IAsyncLifetime
 {
     public NpgsqlDataSource DataSource { get; private set; } = null!;
+    // Keep the original test environment string for independent test hosts.
+    // Npgsql's exposed normalized string may omit password/security fields.
+    public string ConnectionString { get; private set; } = "";
     public async Task InitializeAsync()
     {
         string connectionString = Environment.GetEnvironmentVariable("IDEMPOTENCYKIT_TEST_POSTGRES")
             ?? throw new InvalidOperationException("A real PostgreSQL connection is required.");
+        ConnectionString = connectionString;
         DataSource = NpgsqlDataSource.Create(connectionString);
         await using var connection = await DataSource.OpenConnectionAsync();
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -137,7 +141,7 @@ public sealed class HttpStandardTests(PostgresHttpFixture fixture) : IClassFixtu
                 // Each HTTP host has its own real pool but the same database.
                 // Exercise the public provider-specific DI registration API.
                 services.AddSingleton<NpgsqlDataSource>(_ =>
-                    NpgsqlDataSource.Create(fixture.DataSource.ConnectionString));
+                    NpgsqlDataSource.Create(fixture.ConnectionString));
                 services.AddPostgresTransactionalIdempotency();
                 services.AddIdempotencyKit(options =>
                 {
