@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: Standard-mode HTTP integration and explicit PostgreSQL Transactional Mode now exist for both frameworks.** The Npgsql and node-postgres executors can commit the business SQL and replayable idempotency response in one database transaction. **Automatic Transactional-mode HTTP annotations, EF Core integration, full process-crash verification, reconciliation, registry publication, and production certification are NOT complete.** The Orders demo apps remain health-only; dedicated integration tests exercise real database operations.
+> **Project status: Standard-mode HTTP, PostgreSQL Transactional Mode, EF Core 10 shared-transaction support, and dedicated transaction-aware HTTP APIs are implemented.** ASP.NET Core and NestJS Express have explicit PostgreSQL transactional routes with real integration tests. **SQL Server/SQLite and other providers, universal transactional annotations, automated reconciliation, package publication, and production certification are not implemented.** The Orders demo apps remain health-only.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -252,9 +252,9 @@ Both implementations now provide an **explicit atomic database operation API**, 
 - Both create an **uncommitted unique-key reservation**, execute business SQL on the same transaction, validate/store the supported JSON response **before COMMIT**, and commit both together.
 - Real PostgreSQL integration tests cover one committed business row under 24 simultaneous callers, rollback on handler/response failures, completed-result replay, Standard-mode interoperability, database-backend termination before commit, and separate Node worker-process SIGKILL before/after COMMIT.
 
-**Use the explicit executor instead of** `[Idempotent]` / `@Idempotent` on those transactional operations. The existing decorators implement **Standard mode** and would claim the key before the transactional API. Transactional-mode HTTP orchestration and EF Core support are future milestones.
+**Transactional HTTP and EF Core are now available through explicit APIs:** ASP.NET Core `MapTransactionalPost`, NestJS `PostgresTransactionalHttpService.handleExpress`, and .NET `PostgresEfCoreTransactionalExecutor<TContext>`. Standard-mode `[Idempotent]` / `@Idempotent()` annotations **must not** wrap the same transactional operation.
 
-Read [Transactional Mode v1](spec/TRANSACTIONAL_MODE_V1.md) for runnable callback patterns, recovery requirements and limits. This is a **PostgreSQL-only, same-database** atomicity guarantee, not "exactly once" for payments or other external effects.
+Read [Transactional Mode v1](spec/TRANSACTIONAL_MODE_V1.md) and [Transactional HTTP + EF Core v1](docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) for setup, recovery requirements, and limitations. This is a **PostgreSQL-only, same-database** atomicity guarantee, not "exactly once" for payments or other external effects.
 
 ## Development roadmap
 
@@ -290,4 +290,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** build a real multi-process crash lab (before/after COMMIT), a supported EF Core transaction adapter, transaction-aware HTTP ergonomics, and operational reconciliation. These are not covered by the first database callback executors.
+**Next milestone:** design the database-provider contract, then plan SQL Server and SQLite adapters with their own real-database transaction, concurrency and crash tests. Full .NET HTTP process-crash validation, error parity, reconciliation and publishable packages remain release goals.

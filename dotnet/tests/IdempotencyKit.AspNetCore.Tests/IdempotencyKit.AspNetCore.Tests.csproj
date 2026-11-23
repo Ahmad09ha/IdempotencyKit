@@ -16,5 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/IdempotencyKit.AspNetCore/IdempotencyKit.AspNetCore.csproj" />
     <ProjectReference Include="../../src/IdempotencyKit.Postgres/IdempotencyKit.Postgres.csproj" />
+    <ProjectReference Include="../../src/IdempotencyKit.AspNetCore.Postgres/IdempotencyKit.AspNetCore.Postgres.csproj" />
   </ItemGroup>
 </Project>

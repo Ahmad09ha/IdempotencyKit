@@ -4,7 +4,8 @@ This npm workspace includes an **implemented Standard-mode PostgreSQL store** pl
 
 - `@idempotencykit/core`: scoped request hashes, deterministic JSON fingerprints and `IdempotencyStore` contracts.
 - `@idempotencykit/postgres`: Standard-mode store plus `PostgresTransactionalExecutor`, which atomically commits SQL executed on a supplied `pg.PoolClient` with the replay record.
-- `@idempotencykit/nestjs`: `IdempotencyKitModule.forRoot(...)`, `@Idempotent(...)`, and global Express interceptor; requires `rawBody: true`.
+- `@idempotencykit/nestjs`: Standard-mode module, decorator and interceptor.
+- `@idempotencykit/nestjs-postgres`: `PostgresTransactionalHttpModule.forRoot` and `PostgresTransactionalHttpService.handleExpress` for guarded transaction-aware Express routes; requires `rawBody: true`.
 - `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
 
 ## Build
@@ -38,7 +39,7 @@ const claim = await store.tryClaim(scopeKeyHash, fingerprint, 30_000);
 
 Caller must authenticate/authorize, construct the scoped identity, handle the claim outcome and use the correct policy for Standard-mode uncertain results. **Routes with `@Idempotent(...)` can now be protected when the module, PostgreSQL store, trusted auth guard and raw-body capture are configured correctly. This is Standard mode only.**
 
-Use `PostgresTransactionalExecutor.execute(...)` explicitly from an authenticated NestJS service for same-database transactional writes; do **not** wrap that endpoint with Standard-mode `@Idempotent`. See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md).
+Use `PostgresTransactionalExecutor.execute(...)` for business callbacks or `PostgresTransactionalHttpService.handleExpress(...)` for guarded NestJS Express routes. Do **not** wrap transactional operations with Standard-mode `@Idempotent`. See [Transactional HTTP + EF Core](../docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md).
 
 All packages remain `private`/`0.0.0`; do not publish before the API, operational contract, and tests are finalized.
 

@@ -1,10 +1,12 @@
 # .NET 10 workspace
 
-The solution contains core fingerprint types, a PostgreSQL Standard-mode storage adapter, an **explicit same-transaction Npgsql executor**, ASP.NET Core Standard-mode HTTP middleware, xUnit integration tests, and a health-only sample API.
+The solution includes scoped fingerprints, Standard-mode HTTP, a PostgreSQL transaction executor, **EF Core 10 shared-transaction integration**, **transactional ASP.NET Core PostgreSQL endpoints**, xUnit integration tests and a health-only sample.
 
 - `IdempotencyKit.Core`: scoped identity, canonical JSON request fingerprints, storage contracts.
 - `IdempotencyKit.Postgres`: Standard-mode store plus `PostgresTransactionalExecutor` for database business SQL + completed replay result in **one** Npgsql transaction.
-- `IdempotencyKit.AspNetCore`: implemented `AddIdempotencyKit`, `UseIdempotencyKit`, `.WithIdempotency(...)`, and MVC `[Idempotent(...)]`.
+- `IdempotencyKit.AspNetCore`: database-neutral HTTP input preparation and Standard-mode endpoint middleware.
+- `IdempotencyKit.AspNetCore.Postgres`: `MapTransactionalPost` and `AddPostgresTransactionalIdempotency` for authenticated PostgreSQL transactions.
+- `IdempotencyKit.EntityFrameworkCore.Postgres`: `PostgresEfCoreTransactionalExecutor<TContext>` verifies same connection and joins the Npgsql transaction.
 - `IdempotencyKit.Postgres.Tests`: real PostgreSQL integration tests.
 
 ## Build
@@ -36,8 +38,8 @@ var claim = await store.TryClaimAsync(scopeKeyHash, fingerprint, TimeSpan.FromSe
 // InProgress / FingerprintMismatch / Uncertain => no handler execution.
 ~~~
 
-This is not a complete sample API. **Do not assume calling TryClaim makes arbitrary subsequent business writes atomic**. Standard-mode HTTP middleware is implemented, but it does not make business writes atomic with the result. Transactional Mode is now available through an **explicit Npgsql transaction callback**, not through the Standard-mode annotations or an EF Core adapter.
+This is not a complete sample API. **Do not assume calling TryClaim makes arbitrary subsequent business writes atomic**. Standard-mode HTTP middleware is implemented, but it does not make business writes atomic with the result. Transactional Mode is now accessible through the Npgsql callback, EF Core 10 adapter and explicit PostgreSQL transactional endpoints. Standard-mode annotations remain non-transactional.
 
-See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) and [`PostgresTransactionalTests.cs`](tests/IdempotencyKit.Postgres.Tests/PostgresTransactionalTests.cs) for the fully tested atomic callback API. Do not reuse Standard-mode `[Idempotent]` on a route executing this transactional callback.
+See [Transactional HTTP + EF Core](../docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) and [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) and [`PostgresTransactionalTests.cs`](tests/IdempotencyKit.Postgres.Tests/PostgresTransactionalTests.cs) for the fully tested atomic callback API. Do not reuse Standard-mode `[Idempotent]` on a route executing this transactional callback.
 
 The `Orders.AspNetCore` sample still exposes `GET /health` only. For tested protected endpoint examples, see [`HttpStandardTests.cs`](tests/IdempotencyKit.AspNetCore.Tests/HttpStandardTests.cs) and [HTTP integration guide](../docs/HTTP_STANDARD_V1.md).

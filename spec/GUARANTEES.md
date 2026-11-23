@@ -1,6 +1,6 @@
 # Guarantees, Preconditions, and Non-Guarantees
 
-> **Mixed verification status.** The Standard-mode HTTP and scoped fingerprint portions have real integration tests, and explicit PostgreSQL transactional callbacks have tests for rollback, concurrent claims and completed replay. This is **not complete release certification**: external effects, EF Core integration, full API-process crash injection and operational recovery remain unverified. See [Transactional Mode v1](TRANSACTIONAL_MODE_V1.md).
+> **Mixed verification status.** Scoped fingerprints, PostgreSQL Standard mode, transactional callbacks, EF Core 10 shared transactions, and explicit ASP.NET Core/NestJS Express transactional HTTP integration now have real PostgreSQL tests. Actual NestJS HTTP-server SIGKILL before/after COMMIT is verified. This remains **not production certification**: external effects, SQL Server/SQLite, equivalent ASP.NET process-crash testing, database failover and reconciliation remain outside these claims. See [Verification Evidence](../docs/VERIFICATION.md).
 
 ## G1 — Scoped isolation
 

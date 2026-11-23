@@ -1,6 +1,6 @@
 # Transactional Mode v1 — single PostgreSQL transaction
 
-**Status:** native Npgsql and node-postgres transaction executors are implemented in source, with real PostgreSQL integration tests. This is **not yet** a framework-transparent decorator, public package release, EF Core ORM adapter, or cross-database exactly-once system.
+**Status:** native Npgsql/node-postgres transaction executors, EF Core 10 shared-connection integration, and explicit ASP.NET Core/NestJS Express transactional HTTP APIs are implemented with real PostgreSQL integration tests. These are not automatic transactional controller annotations, stable published packages, or cross-database exactly-once systems.
 
 ## The problem Transactional Mode solves
 
@@ -88,7 +88,7 @@ var outcome = await executor.ExecuteAsync(
 
 The `orders` table, variables, authentication and error response mapping belong to the consuming application. Never call `transaction.CommitAsync()` or `RollbackAsync()` from inside the callback; the executor owns the transaction. Do not perform any business writes through a different connection or an independent `DbContext`.
 
-**EF Core note:** this first implementation provides a typed `NpgsqlConnection` and `NpgsqlTransaction` callback, **not** a prepackaged EF Core integration. A future adapter can join a `DbContext` to that same underlying transaction using `UseTransactionAsync` when the provider/connection ownership is configured correctly. Do not assume ordinary injected EF DbContexts automatically participate.
+**EF Core 10 support is now implemented** in `IdempotencyKit.EntityFrameworkCore.Postgres`. Its `PostgresEfCoreTransactionalExecutor<TContext>` checks that a fresh DbContext uses the **same NpgsqlConnection object**, enlists `UseTransactionAsync` and saves outstanding tracked changes before COMMIT. Independently injected DbContexts do **not** automatically join. See [Transactional HTTP + EF Core](../docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md).
 
 ## NestJS / TypeScript implementation
 
@@ -134,7 +134,7 @@ The pool is application-owned and must be closed at shutdown. The callback recei
 
 **Do not apply `[Idempotent]` or `@Idempotent` to a route that calls the transactional executor for the same scope/key.** Those existing annotations currently claim the key through **Standard mode** before invoking a handler. A nested transactional attempt would encounter an in-progress Standard claim.
 
-Instead, handle request key/fingerprint validation and authorization in your own controller/service, call the transactional executor **as the single owner of the operation**, and map its outcome explicitly. A future dedicated Transactional-mode HTTP integration will streamline this.
+Provider-specific HTTP entry points now perform this explicitly: `MapTransactionalPost` for ASP.NET Core and `PostgresTransactionalHttpService.handleExpress` for NestJS Express. Both authenticate/authorize, fingerprint raw JSON, then use one PostgreSQL transactional callback. The existing Standard-mode annotations must still not wrap these operations. See [Transactional HTTP + EF Core](../docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md).
 
 The core fingerprints and scoped identities are shared: both modes intentionally use the same `idempotencykit_records` table and canonical hash versions.
 
@@ -167,4 +167,4 @@ The tests use PostgreSQL 17 in GitHub Actions:
 
 Scenarios include successful commit+replay, changed fingerprint, callback exception rollback, unsupported response rollback, 24 concurrent contenders, Standard-mode interoperability, deliberate PostgreSQL backend termination before COMMIT, and **real Node worker-process SIGKILL before and after COMMIT**. The Node suite also checks uncommitted rows remain invisible and a bounded lock wait returns `InProgress`.
 
-The backend-termination test is a database-connection failure simulation, while **two separate forked Node worker tests use actual OS SIGKILL before and after COMMIT**. Those workers are **not complete HTTP servers**: full HTTP reconnect/restarted-replica crash testing, EF Core integration, and ORM-specific transaction adapters remain future work. This is an initial narrowly scoped PostgreSQL guarantee, **not** release certification.
+The backend-termination test is a database-connection failure simulation, while **two separate forked Node worker tests use actual OS SIGKILL before and after COMMIT**. Additional tests now kill a **complete NestJS Express server process** before and after COMMIT, then retry over HTTP through a separate surviving host. EF Core 10 is also tested. Equivalent ASP.NET Core process-crash injection and other ORM/provider adapters remain future work. This is an initial narrowly scoped PostgreSQL guarantee, **not** release certification.
