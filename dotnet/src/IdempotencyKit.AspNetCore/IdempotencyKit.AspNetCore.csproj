@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <Description>ASP.NET Core integration project (scaffold, no endpoint filter yet).</Description>
+    <Description>Database-independent ASP.NET Core Standard-mode HTTP and request identity preparation.</Description>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

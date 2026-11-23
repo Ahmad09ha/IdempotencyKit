@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <Description>PostgreSQL Standard-mode idempotency store. No HTTP middleware or transactional business integration yet.</Description>
+    <Description>PostgreSQL Standard-mode store and atomic same-transaction business operation executor.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.4" />
