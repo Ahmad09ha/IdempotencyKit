@@ -152,6 +152,30 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
         return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
+    public async Task<bool> TryMarkUncertainAsync(
+        string scopeKeyHash, string requestFingerprint, Guid ownerToken,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateHash(scopeKeyHash, nameof(scopeKeyHash));
+        ValidateHash(requestFingerprint, nameof(requestFingerprint));
+        if (ownerToken == Guid.Empty)
+            throw new ArgumentException("Owner token is required.", nameof(ownerToken));
+
+        const string sql = """
+            UPDATE idempotencykit_records
+               SET state = 'uncertain', owner_token = NULL, lease_expires_at = NULL
+             WHERE scope_key_hash = @key AND request_fingerprint = @fingerprint
+               AND state = 'processing' AND owner_token = @owner
+            """;
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("key", scopeKeyHash);
+        command.Parameters.AddWithValue("fingerprint", requestFingerprint);
+        command.Parameters.AddWithValue("owner", ownerToken);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task<int> PurgeExpiredCompletedAsync(
         int batchSize, CancellationToken cancellationToken = default)
     {
