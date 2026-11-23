@@ -1,4 +1,4 @@
-# Getting Started: Standard-mode HTTP integration
+# Getting Started: Standard-mode HTTP and PostgreSQL Transactional Mode
 
 > **Important:** Both frameworks now provide opt-in Standard-mode HTTP adapters with real PostgreSQL integration tests. The Orders samples are still health-only and a health check does not prove idempotency. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md) for real usage.
 
@@ -38,7 +38,7 @@ To run the **real PostgreSQL** test suite set `IDEMPOTENCYKIT_TEST_POSTGRES` to 
 dotnet test IdempotencyKit.slnx -c Release
 ~~~
 
-The `IdempotencyKit.Postgres.Tests` and `IdempotencyKit.AspNetCore.Tests` projects test storage, Minimal APIs, MVC annotations, auth scope isolation, conflicts and response replay. It **requires PostgreSQL**. `Orders.AspNetCore` still serves only `GET /health`.
+The `IdempotencyKit.Postgres.Tests` and `IdempotencyKit.AspNetCore.Tests` projects test storage, Minimal APIs, MVC annotations, auth and replay. `PostgresTransactionalTests` additionally prove atomic order insertion, concurrent retries and rollback on PostgreSQL backend termination. It **requires PostgreSQL**. `Orders.AspNetCore` still serves only `GET /health`.
 
 ## TypeScript / NestJS
 
@@ -54,7 +54,13 @@ To run real PostgreSQL tests, set `IDEMPOTENCYKIT_TEST_POSTGRES_URL` to a databa
 npm test
 ~~~
 
-The `typescript/tests/postgres-v1.test.mjs` and `typescript/tests/http-standard-v1.test.mjs` suites skip database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests. The NestJS sample still serves only `GET /health`.
+The `typescript/tests/postgres-v1.test.mjs`, `typescript/tests/http-standard-v1.test.mjs` and `typescript/tests/postgres-transactional-v1.test.mjs` suites skip database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests. The NestJS sample still serves only `GET /health`.
+
+## Transactional Mode (explicit callback API)
+
+For database mutations that must commit atomically with the replay record, use `PostgresTransactionalExecutor` from the relevant PostgreSQL package. Both implementations open a transaction and provide **the exact database connection** that the callback must use. The callback returns a bounded JSON response which is saved **before** the single `COMMIT`.
+
+See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) for real Npgsql and `pg.PoolClient` examples, result mapping, commit-ack ambiguity, and the critical warning **not to stack Standard-mode decorators around the same transactional operation**. This is source-only and has no EF Core adapter yet.
 
 ## Store API outline
 

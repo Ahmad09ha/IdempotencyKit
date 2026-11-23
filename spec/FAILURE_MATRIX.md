@@ -1,6 +1,6 @@
 # Failure and Recovery Matrix (proposed acceptance criteria)
 
-> Each case is a **planned** test. No rows should be interpreted as passing until an automated run and reproducible evidence exist.
+> This remains the **full acceptance backlog**, not a list of universally passing tests. Initial transactional integration tests now exercise commit + replay, callback exception rollback, response-validation rollback, 24 concurrent contenders and deliberately terminated PostgreSQL backends **before COMMIT**. Actual API-process SIGKILL and post-COMMIT network failures are still pending. See [Transactional Mode v1](TRANSACTIONAL_MODE_V1.md).
 
 | Scenario | Standard-mode expectation | Transactional-mode expectation |
 | --- | --- | --- |

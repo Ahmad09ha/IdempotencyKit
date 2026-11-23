@@ -1,6 +1,6 @@
 # Guarantees, Preconditions, and Non-Guarantees
 
-> **Design target only.** No guarantee listed here has yet been established by executable implementation or completed tests.
+> **Mixed verification status.** The Standard-mode HTTP and scoped fingerprint portions have real integration tests, and explicit PostgreSQL transactional callbacks have tests for rollback, concurrent claims and completed replay. This is **not complete release certification**: external effects, EF Core integration, full API-process crash injection and operational recovery remain unverified. See [Transactional Mode v1](TRANSACTIONAL_MODE_V1.md).
 
 ## G1 — Scoped isolation
 
@@ -39,7 +39,7 @@ For supported operations where the **business mutation and the completed respons
 
 This applies to database writes that actually participate in that same transaction. It does **not** make external payment gateways, emails, cross-database writes, calls to other APIs, caches, broker publications, or arbitrary side effects exactly-once.
 
-The framework integration must expose transaction-aware execution; simply tagging a controller with a decorator/attribute is **not** sufficient.
+Transaction-aware execution is now exposed through the **explicit Npgsql and node-postgres callbacks**; the existing HTTP decorator/attribute remains Standard-mode only. Simply tagging a controller with that decorator/attribute is **not** a transactional guarantee. See [Transactional Mode v1](TRANSACTIONAL_MODE_V1.md).
 
 ## G6 — Fail-closed behavior
 
