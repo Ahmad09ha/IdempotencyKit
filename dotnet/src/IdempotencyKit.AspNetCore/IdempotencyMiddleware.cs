@@ -120,7 +120,7 @@ public sealed class IdempotencyMiddleware(
         switch (decision.Status)
         {
             case IdempotencyClaimStatus.InProgress:
-                http.Response.Headers.RetryAfter = "1";
+                http.Response.Headers["Retry-After"] = "1";
                 await Problem(http, StatusCodes.Status409Conflict,
                     "IDEMPOTENCY_IN_PROGRESS", "A matching operation is still processing.");
                 return;
@@ -235,8 +235,8 @@ public sealed class IdempotencyMiddleware(
         if (request.ContentLength > MaxRequestBytes)
             throw new RequestTooLargeException();
 
-        if (request.Headers.ContentEncoding.Count != 0 &&
-            !string.Equals(request.Headers.ContentEncoding.ToString(), "identity",
+        if (request.Headers.TryGetValue("Content-Encoding", out var encoding) &&
+            !string.Equals(encoding.ToString(), "identity",
                 StringComparison.OrdinalIgnoreCase))
             throw new UnsupportedContentTypeException();
 
