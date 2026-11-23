@@ -21,7 +21,7 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. There is still **no transactional guarantee for business writes**, production package publication, or automated reconciliation.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL **same-transaction business callback** now exists in both languages, but there is **no EF Core adapter, transactional HTTP decorator, publication, or automated reconciliation**.
 
 ## Phase 1 — .NET Standard mode
 
@@ -51,11 +51,13 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 
 ## Phase 3 — Transactional mode
 
-- [ ] Define explicit transaction-aware operation APIs in both languages.
-- [ ] Implement EF Core/PostgreSQL shared transaction integration.
-- [ ] Implement one selected NestJS PostgreSQL transaction integration.
-- [ ] Serialize result before commit; ensure database transaction rollback/commit covers business + record.
-- [ ] Demonstrate real process-kill before/after commit and HTTP-retry outcome.
+- [x] Define and implement explicit Npgsql and node-postgres transaction-aware callbacks.
+- [ ] Implement dedicated EF Core/PostgreSQL shared transaction adapter (not yet supported as a packaged feature).
+- [x] Implement PostgreSQL `pg.PoolClient` callback usable from NestJS services, with one owned BEGIN/COMMIT/ROLLBACK transaction.
+- [x] Validate/serialize supported JSON response before COMMIT; exercise business-row + idempotency-row atomicity against real PostgreSQL.
+- [x] Simulate database-backend termination before COMMIT and verify both rows roll back; verify completed retry replay.
+- [x] Demonstrate real forked Node worker-process SIGKILL before and after COMMIT, validating database rollback and replay.
+- [ ] Demonstrate full HTTP API-process SIGKILL before/after commit and client HTTP retry across restarted hosts.
 
 **Exit:** one committed business effect and replayable result in verified failure windows.
 

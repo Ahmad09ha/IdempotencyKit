@@ -1,4 +1,4 @@
--- IdempotencyKit Standard-mode store (PostgreSQL 15+).
+-- IdempotencyKit shared Standard + Transactional PostgreSQL record table (PostgreSQL 15+).
 -- Apply with a managed migration before starting the app. Never run arbitrary DDL
 -- in each incoming HTTP request. This migration is intentionally idempotent for
 -- development; production migration tools must track executed revisions.

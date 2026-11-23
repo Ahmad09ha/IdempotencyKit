@@ -1,6 +1,6 @@
 # Architecture and design decisions (draft)
 
-> **Mixed implementation state:** the .NET and NestJS/Express Standard-mode HTTP adapters, fingerprint cores, PostgreSQL stores and integration tests now exist. The **Transactional mode**, generalized engine abstractions, Fastify support, crash labs and production release processes remain proposed. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md).
+> **Mixed implementation state:** .NET and NestJS/Express Standard-mode HTTP adapters, fingerprints, PostgreSQL stores, and **explicit same-transaction Npgsql/node-postgres callback executors** are implemented with integration tests. Packaged EF Core integration, Transactional HTTP decorators, Fastify, real process-crash labs, and release processes remain proposed. See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) and [HTTP Standard Mode v1](HTTP_STANDARD_V1.md).
 
 ## Goals
 
@@ -100,7 +100,7 @@ A lease limits competing ownership, **not** real-world side effects executed by 
 
 If a process crashes before step 7, no mutation/result commits. If it crashes after step 7 but before the response, the result can be recovered. A timed-out or ambiguous commit acknowledgement requires read/reconcile rather than an unconditional second execution.
 
-We will explicitly specify how EF Core passes its `DbContext` transaction and how NestJS passes a PostgreSQL transaction context. We should not promise automatic support for arbitrary independent repository connections, multiple ORMs, middleware-managed transactions, or callback code that opens new connections.
+We now expose a callback passing an Npgsql connection/transaction and a separate callback passing a node-postgres `PoolClient`. EF Core's `DbContext` shared-transaction integration remains future work. We should not promise automatic support for arbitrary independent repository connections, multiple ORMs, middleware-managed transactions, or callback code that opens new connections.
 
 ## .NET implementation boundaries (planned)
 

@@ -3,7 +3,7 @@
 This npm workspace includes an **implemented Standard-mode PostgreSQL store** plus a TypeScript core, and a working NestJS Standard-mode HTTP interceptor/decorator for supported Express JSON routes.
 
 - `@idempotencykit/core`: scoped request hashes, deterministic JSON fingerprints and `IdempotencyStore` contracts.
-- `@idempotencykit/postgres`: node-postgres implementation using PostgreSQL's unique constraints and atomic updates.
+- `@idempotencykit/postgres`: Standard-mode store plus `PostgresTransactionalExecutor`, which atomically commits SQL executed on a supplied `pg.PoolClient` with the replay record.
 - `@idempotencykit/nestjs`: `IdempotencyKitModule.forRoot(...)`, `@Idempotent(...)`, and global Express interceptor; requires `rawBody: true`.
 - `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
 
@@ -23,7 +23,7 @@ Apply the migration `../spec/sql/postgres/001_idempotencykit_records.sql`. Set `
 npm test
 ~~~
 
-When the environment variable is absent, the PostgreSQL-specific Node tests **skip**; CI always supplies a real PostgreSQL 17 server to exercise them. The test suite covers concurrent atomic claims, mismatches, replay, owner fencing, expiry, response limits and cleanup.
+When the environment variable is absent, the PostgreSQL-specific Node tests **skip**; CI always supplies a real PostgreSQL 17 server to exercise them. The test suite covers Standard-mode claims, replay and leases, plus Transactional-mode business-table rollbacks, 24-way concurrency, completion replay and PostgreSQL backend termination.
 
 ## Programmatic storage usage (illustration)
 
@@ -37,6 +37,8 @@ const claim = await store.tryClaim(scopeKeyHash, fingerprint, 30_000);
 ~~~
 
 Caller must authenticate/authorize, construct the scoped identity, handle the claim outcome and use the correct policy for Standard-mode uncertain results. **Routes with `@Idempotent(...)` can now be protected when the module, PostgreSQL store, trusted auth guard and raw-body capture are configured correctly. This is Standard mode only.**
+
+Use `PostgresTransactionalExecutor.execute(...)` explicitly from an authenticated NestJS service for same-database transactional writes; do **not** wrap that endpoint with Standard-mode `@Idempotent`. See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md).
 
 All packages remain `private`/`0.0.0`; do not publish before the API, operational contract, and tests are finalized.
 
