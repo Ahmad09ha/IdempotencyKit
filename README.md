@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: initial cross-framework scaffolds.** The .NET solution and NestJS/npm workspace now exist with core contract types, sample health endpoints, basic tests, and CI configuration. **The HTTP idempotency engine, PostgreSQL store, transactional protection, and claimed failure guarantees are not implemented or verified yet.** Nothing in the sample APIs protects write requests.
+> **Project status: first core feature implemented in a development branch.** Both .NET and TypeScript cores now provide scoped request identity hashes and deterministic SHA-256 JSON request fingerprints with shared golden-vector tests. **The HTTP idempotency engine, PostgreSQL store, transactional protection, and claimed failure guarantees are not implemented yet.** Neither sample API protects write requests.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -202,6 +202,17 @@ The initial TypeScript scaffold has no `package-lock.json` because registry acce
 
 See [Getting Started](docs/GETTING_STARTED.md), [.NET workspace](dotnet/README.md), and [NestJS workspace](typescript/README.md).
 
+## Implemented: request identity and fingerprint v1
+
+The first core milestone now has actual code in both languages, plus shared golden test vectors under [`spec/test-vectors/fingerprint-v1.json`](spec/test-vectors/fingerprint-v1.json).
+
+- **.NET:** `RequestIdentityHasher.ComputeScopeKey(...)` and `RequestFingerprinter.Compute(...)`
+- **TypeScript:** `computeScopeKey(...)` and `computeRequestFingerprint(...)` from `@idempotencykit/core`
+- Inputs include an authenticated scope, key, method, operation ID, path, decoded query pairs, and original JSON body text.
+- SHA-256 results are prefixed `v1:`. The custom canonicalization format **IK-CJSON/1 is not RFC 8785/JCS**; consult [the exact algorithm and limits](spec/IDENTITY_AND_FINGERPRINT.md).
+
+This only makes operations **recognizable and comparable**. Storage coordination, duplicate prevention and response replay will be implemented separately.
+
 ## Development roadmap
 
 1. Freeze initial invariants, HTTP/error contract, fingerprinting rules, and shared scenarios.
@@ -236,4 +247,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** review the shared protocol and request fingerprints, then implement the first atomic claim/replay feature in the scaffolded packages. Builds and tests are configured but not yet verified as passing.
+**Next milestone:** implement an atomic PostgreSQL claim/complete store with conservative uncertain-outcome handling, then endpoint integration and replay. This hashing milestone does not yet guarantee idempotent HTTP behavior.
