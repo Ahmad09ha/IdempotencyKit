@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>Contracts for the future IdempotencyKit engine (scaffold only).</Description>
+  </PropertyGroup>
+</Project>

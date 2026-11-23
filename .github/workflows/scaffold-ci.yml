@@ -1,0 +1,42 @@
+name: Scaffold CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dotnet:
+    name: .NET 10 solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore dotnet/IdempotencyKit.slnx
+      - name: Build
+        run: dotnet build dotnet/IdempotencyKit.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test dotnet/IdempotencyKit.slnx --configuration Release --no-build
+
+  typescript:
+    name: NestJS 12 workspaces
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # First scaffold commit cannot carry a generated lockfile without registry access.
+      # Switch to npm ci and commit package-lock.json after the first successful install.
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test

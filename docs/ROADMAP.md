@@ -13,6 +13,16 @@
 
 **Exit:** a reviewable v1 protocol/spec with test fixtures and explicit exclusions.
 
+## Scaffold milestone — two language workspaces
+
+- [x] Add a native .NET 10 solution with core, ASP.NET Core, PostgreSQL, unit-test and sample projects.
+- [x] Add an npm workspace with NestJS 12, core, NestJS adapter, PostgreSQL adapter and a sample API.
+- [x] Add initial scaffold tests and GitHub Actions workflow.
+- [ ] Verify that both ecosystems build and tests pass on CI; fix issues and record results.
+- [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
+
+The code is **scaffold-only**, with no actual HTTP idempotency enforcement.
+
 ## Phase 1 — .NET Standard mode
 
 - [ ] Create .NET solution, core contracts, ASP.NET Core adapter, and PostgreSQL store.

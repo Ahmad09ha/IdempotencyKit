@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>PostgreSQL integration project (scaffold, no store implementation yet).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
+  </ItemGroup>
+</Project>

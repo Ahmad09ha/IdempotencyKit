@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
+    <Project Path="src/IdempotencyKit.AspNetCore/IdempotencyKit.AspNetCore.csproj" />
+    <Project Path="src/IdempotencyKit.Postgres/IdempotencyKit.Postgres.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Orders.AspNetCore/Orders.AspNetCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IdempotencyKit.Core.Tests/IdempotencyKit.Core.Tests.csproj" />
+  </Folder>
+</Solution>

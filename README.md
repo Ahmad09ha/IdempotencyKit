@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: design / repository foundation.** The packages, integrations, benchmarks, and failure guarantees described below are **planned**, not implemented, published, or verified yet. This repository currently documents the design and acceptance criteria. Code will arrive incrementally, backed by real integration and crash tests.
+> **Project status: initial cross-framework scaffolds.** The .NET solution and NestJS/npm workspace now exist with core contract types, sample health endpoints, basic tests, and CI configuration. **The HTTP idempotency engine, PostgreSQL store, transactional protection, and claimed failure guarantees are not implemented or verified yet.** Nothing in the sample APIs protects write requests.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -150,7 +150,7 @@ See [Failure Matrix](spec/FAILURE_MATRIX.md). The tests have **not** been implem
 
 ## Proposed repository structure
 
-The current repository contains documentation. The code directories below are the **planned layout**, not a claim that executable packages already exist:
+The repository now contains the **actual initial .NET solution and NestJS/npm workspace**. Their implementations are scaffold-only; the following also shows directories reserved for future work:
 
 ~~~text
 IdempotencyKit/
@@ -171,6 +171,36 @@ IdempotencyKit/
 ├── samples/                 # planned equivalent Orders APIs
 └── lab/                     # planned Docker/failure experiments
 ~~~
+
+## Run the scaffolds
+
+> **Not production-ready**. These commands build the initial projects and run sample **health endpoints**; no idempotency protection is installed.
+
+**.NET 10 SDK** (from the repository root):
+
+~~~bash
+cd dotnet
+dotnet restore IdempotencyKit.slnx
+dotnet build IdempotencyKit.slnx --configuration Release
+dotnet test IdempotencyKit.slnx --configuration Release
+dotnet run --project samples/Orders.AspNetCore
+~~~
+
+**NestJS 12 / TypeScript 6**, with a current **Node 24 LTS** and npm:
+
+~~~bash
+cd typescript
+npm install
+npm run build
+npm test
+npm run start:orders
+~~~
+
+The NestJS sample serves `http://localhost:3000/health`. The .NET sample serves `/health` on the local URL printed by ASP.NET Core. Both report `scaffold-only`.
+
+The initial TypeScript scaffold has no `package-lock.json` because registry access was unavailable during creation; commit a lockfile after a successful install and then switch CI to `npm ci`.
+
+See [Getting Started](docs/GETTING_STARTED.md), [.NET workspace](dotnet/README.md), and [NestJS workspace](typescript/README.md).
 
 ## Development roadmap
 
@@ -206,4 +236,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** agree on the `spec/HTTP_CONTRACT.md` and `spec/GUARANTEES.md` contracts, then implement the first small, tested vertical slice.
+**Next milestone:** review the shared protocol and request fingerprints, then implement the first atomic claim/replay feature in the scaffolded packages. Builds and tests are configured but not yet verified as passing.

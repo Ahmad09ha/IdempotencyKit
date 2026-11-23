@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>ASP.NET Core integration project (scaffold, no endpoint filter yet).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
+  </ItemGroup>
+</Project>
