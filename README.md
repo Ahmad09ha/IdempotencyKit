@@ -250,7 +250,7 @@ Both implementations now provide an **explicit atomic database operation API**, 
 - **.NET / Npgsql:** `PostgresTransactionalExecutor.ExecuteAsync(scopeKeyHash, fingerprint, callback, retention, cancellationToken)`. The callback receives the shared `NpgsqlConnection` and `NpgsqlTransaction`.
 - **TypeScript / node-postgres:** `PostgresTransactionalExecutor.execute(scopeKeyHash, fingerprint, callback, retentionMs)`. The callback receives the transaction's `pg.PoolClient`.
 - Both create an **uncommitted unique-key reservation**, execute business SQL on the same transaction, validate/store the supported JSON response **before COMMIT**, and commit both together.
-- Real PostgreSQL integration tests cover one committed business row under 24 simultaneous callers, rollback on handler/response failures, completed-result replay, Standard-mode interoperability, and database-backend termination before commit.
+- Real PostgreSQL integration tests cover one committed business row under 24 simultaneous callers, rollback on handler/response failures, completed-result replay, Standard-mode interoperability, database-backend termination before commit, and separate Node worker-process SIGKILL before/after COMMIT.
 
 **Use the explicit executor instead of** `[Idempotent]` / `@Idempotent` on those transactional operations. The existing decorators implement **Standard mode** and would claim the key before the transactional API. Transactional-mode HTTP orchestration and EF Core support are future milestones.
 

@@ -4,16 +4,16 @@ This file records **observed test results**, separately from planned guarantees.
 
 ## 2026-11-23 — PostgreSQL Transactional Mode v1
 
-**Verified source commit:** `c7d03838925af67c4c407df3440c19aad4be9777` on `feature/transactional-postgres-v1`.  
-**GitHub Actions:** [Build and PostgreSQL Integration CI — run 45239007745](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45239007745). Both jobs completed successfully.
+**Verified source commit:** `8b933cea92f72b15256a233884c85ac5100c16e1` on `feature/transactional-postgres-v1`.  
+**GitHub Actions:** [Build and PostgreSQL Integration CI — run 45239709855](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45239709855). Both jobs completed successfully.
 
 | Ecosystem | CI runtime | Tests passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
 | .NET 10 / Npgsql | GitHub Actions Ubuntu + PostgreSQL 17 | **28** | 0 | 0 |
-| Node.js 24 / TypeScript / NestJS 12 | GitHub Actions Ubuntu + PostgreSQL 17 | **25** | 0 | 0 |
-| **Total** | | **53** | **0** | **0** |
+| Node.js 24 / TypeScript / NestJS 12 | GitHub Actions Ubuntu + PostgreSQL 17 | **27** | 0 | 0 |
+| **Total** | | **55** | **0** | **0** |
 
-The .NET total comprises 7 core tests, 12 PostgreSQL store/transactional tests, and 9 ASP.NET Core HTTP integration tests. The Node total comprises shared fingerprint tests, Standard-mode store and NestJS HTTP tests, and 7 additional PostgreSQL Transactional-mode tests.
+The .NET total comprises 7 core tests, 12 PostgreSQL store/transactional tests, and 9 ASP.NET Core HTTP integration tests. The Node total comprises shared fingerprint tests, Standard-mode store and NestJS HTTP tests, **7 PostgreSQL Transactional-mode tests**, and **2 forked-worker SIGKILL tests**.
 
 ### Database transactional scenarios actually exercised
 
@@ -26,6 +26,8 @@ The .NET total comprises 7 core tests, 12 PostgreSQL store/transactional tests, 
 - Existing Standard-mode processing/uncertain records prevent Transactional-mode callback execution.
 - The Standard-mode store can replay a completed result written by Transactional mode.
 - Deliberately terminating the **PostgreSQL backend** inside a still-uncommitted operation rolls back both rows, and a subsequent same-key call can execute successfully.
+- **Actual process SIGKILL injection (Node):** a separately forked worker is killed after writing an uncommitted business row, before COMMIT; both rows are absent and a same-key retry commits once.
+- **Actual process SIGKILL injection (Node):** a separately forked worker is killed **after** successful COMMIT but before returning a result to its parent; the retry gets a persisted replay and does not execute a second order.
 - Node-specific test: while the transaction is open, a second connection cannot observe the uncommitted records, and a bounded claim-lock wait returns `InProgress`.
 - Node's PostgreSQL pool handles the expected delayed disconnect event from that backend-termination test without an unhandled exception.
 
@@ -38,9 +40,9 @@ The .NET total comprises 7 core tests, 12 PostgreSQL store/transactional tests, 
 
 ### Known verification gaps (not yet asserted)
 
-- **No API-process SIGKILL** at before/after COMMIT checkpoints, with HTTP reconnect to restarted replicas.
+- **No complete HTTP-server-process SIGKILL lab** with HTTP clients, network disconnects and restarted API replicas. The verified forked-worker SIGKILL cases test the **transactional database boundary** rather than an HTTP host's full request pipeline.
 - **No failover or asynchronous replication loss** injection; PostgreSQL primary durability settings matter.
-- No true multi-host independent process stress/benchmark of Transactional mode (the 24-way concurrency tests use separate pooled connections).
+- No two-independent-HTTP-replica stress/benchmark of Transactional mode (the 24-way concurrency tests use separate pooled connections, and the SIGKILL tests fork a non-HTTP worker process).
 - No EF Core `DbContext` transaction adapter verified against Npgsql.
 - No Transactional-mode HTTP attribute/decorator that automatically creates the shared business transaction.
 - No external payment/email/queue exactly-once guarantees, no Fastify adapter, no released NuGet/npm packages, no production deployment/security audit.

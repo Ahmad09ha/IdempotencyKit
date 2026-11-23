@@ -56,7 +56,8 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Implement PostgreSQL `pg.PoolClient` callback usable from NestJS services, with one owned BEGIN/COMMIT/ROLLBACK transaction.
 - [x] Validate/serialize supported JSON response before COMMIT; exercise business-row + idempotency-row atomicity against real PostgreSQL.
 - [x] Simulate database-backend termination before COMMIT and verify both rows roll back; verify completed retry replay.
-- [ ] Demonstrate real API-process SIGKILL before/after commit and HTTP retry across restarted hosts.
+- [x] Demonstrate real forked Node worker-process SIGKILL before and after COMMIT, validating database rollback and replay.
+- [ ] Demonstrate full HTTP API-process SIGKILL before/after commit and client HTTP retry across restarted hosts.
 
 **Exit:** one committed business effect and replayable result in verified failure windows.
 
