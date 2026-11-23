@@ -21,18 +21,18 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. There is still **no HTTP endpoint integration** or transactional guarantee for business writes.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. There is still **no transactional guarantee for business writes**, production package publication, or automated reconciliation.
 
 ## Phase 1 — .NET Standard mode
 
 - [x] Create .NET solution, core contracts, ASP.NET Core adapter scaffold, and PostgreSQL Standard-mode store.
 - [x] Implement PostgreSQL atomic claims with unique indexes and owner fencing.
 - [x] Implement scoped fingerprints, raw JSON response storage, mismatch detection, and in-flight store behavior.
-- [ ] Integrate HTTP response serialization and automatic replay in ASP.NET Core.
+- [x] Implement ASP.NET Core JSON response capture and replay via metadata + pre-model-binding middleware.
 - [x] Handle lease expiry conservatively (mark uncertain; no blind reclaim).
 - [ ] Add controlled operational reconciliation interface and policies.
 - [x] Add real PostgreSQL concurrency/expiry/replay integration tests.
-- [ ] Add Minimal API and MVC integration tests after implementing HTTP adapters.
+- [x] Add Minimal API and MVC HTTP integration tests against real PostgreSQL.
 - [ ] Document public APIs using a runnable sample, not pseudocode.
 
 **Exit:** repeatable Standard-mode tests and honest documentation of crash gap.
@@ -40,10 +40,12 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 ## Phase 2 — NestJS Standard mode
 
 - [x] Build npm workspace, TypeScript core and PostgreSQL Standard-mode adapter.
-- [ ] Implement NestJS interceptor/decorator/module beyond its current scaffold.
-- [ ] Ensure auth/guard ordering and Express/Fastify behavior are explicit.
+- [x] Implement NestJS module, `@Idempotent` decorator, and globally registered interceptor.
+- [x] Verify authenticated guard ordering and raw-body fingerprinting using NestJS Express.
+- [ ] Add and verify a separate Fastify adapter before promising Fastify support.
 - [ ] Consume shared contract fixtures and parity scenarios.
-- [ ] Test multi-replica duplicates, malformed JSON, body canonicalization, response replay.
+- [x] Add NestJS Express HTTP tests for replay, conflicts, scope isolation and unknown outcomes.
+- [ ] Add process-crash, multi-replica and wire-response serializer parity tests.
 
 **Exit:** identical observable behavior for supported HTTP routes on both platforms.
 

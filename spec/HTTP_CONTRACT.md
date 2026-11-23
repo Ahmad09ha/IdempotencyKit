@@ -1,6 +1,6 @@
 # IdempotencyKit — Proposed HTTP Contract (v1)
 
-> **Status: design proposal, not implemented or verified.** This is a project contract, informed by the IETF [Idempotency-Key draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/), **not** a claim that the draft is a final RFC.
+> **Status: a v1 subset is implemented in Standard-mode HTTP integrations.** The remaining decisions in this document are design proposals, not verified production features. The draft is informed by the IETF [Idempotency-Key draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/), **not** a final RFC. See [the implemented v1 behavior](../docs/HTTP_STANDARD_V1.md); error-body normalization and general 4xx/5xx replay are still future work.
 
 ## Scope
 

@@ -15,7 +15,19 @@ before(async () => {
   if (pool) {
     const sql = readFileSync(fileURLToPath(new URL(
       "../../spec/sql/postgres/001_idempotencykit_records.sql", import.meta.url)), "utf8");
-    await pool.query(sql);
+    const connection = await pool.connect();
+    try {
+      await connection.query("BEGIN");
+      await connection.query(
+        "SELECT pg_advisory_xact_lock(hashtext('idempotencykit_schema_001'))");
+      await connection.query(sql);
+      await connection.query("COMMIT");
+    } catch (error) {
+      await connection.query("ROLLBACK");
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 });
 

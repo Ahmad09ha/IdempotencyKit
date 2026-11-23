@@ -10,5 +10,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/IdempotencyKit.Core.Tests/IdempotencyKit.Core.Tests.csproj" />
     <Project Path="tests/IdempotencyKit.Postgres.Tests/IdempotencyKit.Postgres.Tests.csproj" />
+    <Project Path="tests/IdempotencyKit.AspNetCore.Tests/IdempotencyKit.AspNetCore.Tests.csproj" />
   </Folder>
 </Solution>

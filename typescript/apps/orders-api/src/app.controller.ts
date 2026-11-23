@@ -8,7 +8,7 @@ export class AppController {
     return {
       service: "orders-nestjs",
       status: "ok",
-      idempotency: "scaffold-only",
+      idempotency: "sample-health-only",
     };
   }
 }

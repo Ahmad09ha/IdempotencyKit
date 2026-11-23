@@ -1,6 +1,6 @@
-# Getting Started: Core libraries and PostgreSQL Standard-mode storage
+# Getting Started: Standard-mode HTTP integration
 
-> **Important:** There is no active HTTP protection in either Orders sample yet. This page shows how to build and test the core and storage layers. A successful health check does NOT demonstrate idempotency.
+> **Important:** Both frameworks now provide opt-in Standard-mode HTTP adapters with real PostgreSQL integration tests. The Orders samples are still health-only and a health check does not prove idempotency. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md) for real usage.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ To run the **real PostgreSQL** test suite set `IDEMPOTENCYKIT_TEST_POSTGRES` to 
 dotnet test IdempotencyKit.slnx -c Release
 ~~~
 
-The new `IdempotencyKit.Postgres.Tests` project tests concurrent claims, replay, owner fencing, lease expiry, unsafe response headers and retention cleanup. It **requires PostgreSQL**. `Orders.AspNetCore` still serves only `GET /health`.
+The `IdempotencyKit.Postgres.Tests` and `IdempotencyKit.AspNetCore.Tests` projects test storage, Minimal APIs, MVC annotations, auth scope isolation, conflicts and response replay. It **requires PostgreSQL**. `Orders.AspNetCore` still serves only `GET /health`.
 
 ## TypeScript / NestJS
 
@@ -54,7 +54,7 @@ To run real PostgreSQL tests, set `IDEMPOTENCYKIT_TEST_POSTGRES_URL` to a databa
 npm test
 ~~~
 
-The `typescript/tests/postgres-v1.test.mjs` integration suite skips database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests. The NestJS sample still serves only `GET /health`.
+The `typescript/tests/postgres-v1.test.mjs` and `typescript/tests/http-standard-v1.test.mjs` suites skip database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests. The NestJS sample still serves only `GET /health`.
 
 ## Store API outline
 
@@ -72,6 +72,6 @@ PurgeExpiredCompleted(batchSize)
   => number of removed completed records after their retention window
 ~~~
 
-**Never automatically retry an `Uncertain` operation:** the prior worker could already have produced business effects. Applying the migration and calling these storage methods is not the same as enabling an idempotent controller or NestJS interceptor.
+**Never automatically retry an `Uncertain` operation:** the prior worker could already have produced business effects. Applying the migration and calling store methods alone does not enable HTTP protection. Register the appropriate framework adapter, use trusted authentication, and read the Standard-mode crash-recovery limitations.
 
 See [PostgreSQL Store v1](../spec/POSTGRES_STORE_V1.md), [Guarantees](../spec/GUARANTEES.md), and [Roadmap](ROADMAP.md).

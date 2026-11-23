@@ -49,6 +49,15 @@ public interface IIdempotencyStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Preserve an unknown outcome under the current owner token. This operation
+    /// is safe even after a lease expires if this owner still owns the processing
+    /// row; it never permits another execution.
+    /// </summary>
+    Task<bool> TryMarkUncertainAsync(
+        string scopeKeyHash, string requestFingerprint, Guid ownerToken,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Delete at most batchSize completed records beyond their retention window.
     /// Processing and uncertain records must never be purged automatically.
     /// </summary>

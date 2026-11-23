@@ -1,10 +1,10 @@
 # .NET 10 workspace
 
-The solution contains core fingerprint types, a **working PostgreSQL Standard-mode storage adapter**, an ASP.NET Core integration scaffold, xUnit tests, and a sample health-only API.
+The solution contains core fingerprint types, a **working PostgreSQL Standard-mode storage adapter**, an ASP.NET Core Standard-mode integration via middleware and endpoint metadata, xUnit tests, and a sample health-only API.
 
 - `IdempotencyKit.Core`: scoped identity, canonical JSON request fingerprints, storage contracts.
 - `IdempotencyKit.Postgres`: atomic claims, owner-lease fencing, completed JSON response persistence and replay data, conservative `Uncertain` handling and explicit purge.
-- `IdempotencyKit.AspNetCore`: **not implemented** beyond scaffold.
+- `IdempotencyKit.AspNetCore`: implemented `AddIdempotencyKit`, `UseIdempotencyKit`, `.WithIdempotency(...)`, and MVC `[Idempotent(...)]`.
 - `IdempotencyKit.Postgres.Tests`: real PostgreSQL integration tests.
 
 ## Build
@@ -36,6 +36,6 @@ var claim = await store.TryClaimAsync(scopeKeyHash, fingerprint, TimeSpan.FromSe
 // InProgress / FingerprintMismatch / Uncertain => no handler execution.
 ~~~
 
-This is not a complete sample API. **Do not assume calling TryClaim makes arbitrary subsequent business writes atomic**. The eventual ASP.NET Core middleware and Transactional mode are future milestones.
+This is not a complete sample API. **Do not assume calling TryClaim makes arbitrary subsequent business writes atomic**. Standard-mode HTTP middleware is implemented, but it does not make business writes atomic with the result. Transactional mode remains a future milestone.
 
-The `Orders.AspNetCore` sample still exposes `GET /health` only.
+The `Orders.AspNetCore` sample still exposes `GET /health` only. For tested protected endpoint examples, see [`HttpStandardTests.cs`](tests/IdempotencyKit.AspNetCore.Tests/HttpStandardTests.cs) and [HTTP integration guide](../docs/HTTP_STANDARD_V1.md).

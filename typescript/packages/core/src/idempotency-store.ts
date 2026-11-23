@@ -36,5 +36,12 @@ export interface IdempotencyStore {
     leaseMs: number,
   ): Promise<boolean>;
 
+  /** Mark an owned processing request uncertain after a handler or capture failure. */
+  tryMarkUncertain(
+    scopeKeyHash: string,
+    requestFingerprint: string,
+    ownerToken: string,
+  ): Promise<boolean>;
+
   purgeExpiredCompleted(batchSize: number): Promise<number>;
 }

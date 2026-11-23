@@ -1,9 +1,9 @@
 namespace IdempotencyKit.AspNetCore;
 
 /// <summary>
-/// Build-time marker only: this project does not install middleware or protect requests.
+/// Marker for the unprotected health-only Orders sample. HTTP integration now exists separately.
 /// </summary>
 public static class AspNetCoreScaffoldInfo
 {
-    public const string Status = "scaffold-only";
+    public const string Status = "sample-health-only";
 }

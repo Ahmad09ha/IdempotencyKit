@@ -134,6 +134,22 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     return result.rowCount === 1;
   }
 
+  async tryMarkUncertain(
+    scopeKeyHash: string, requestFingerprint: string, ownerToken: string,
+  ): Promise<boolean> {
+    validateHash(scopeKeyHash);
+    validateHash(requestFingerprint);
+    validateUuid(ownerToken);
+    const result = await this.pool.query(
+      `UPDATE idempotencykit_records
+          SET state = 'uncertain', owner_token = NULL, lease_expires_at = NULL
+        WHERE scope_key_hash = $1 AND request_fingerprint = $2
+          AND state = 'processing' AND owner_token = $3::uuid`,
+      [scopeKeyHash, requestFingerprint, ownerToken],
+    );
+    return result.rowCount === 1;
+  }
+
   async purgeExpiredCompleted(batchSize: number): Promise<number> {
     if (!Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > 1000)
       throw new RangeError("Batch size must be between 1 and 1000.");
