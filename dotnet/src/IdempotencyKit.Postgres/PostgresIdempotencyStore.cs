@@ -226,7 +226,7 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
             !reader.IsDBNull(2) && reader.GetBoolean(2), response);
     }
 
-    private static string SerializeSafeHeaders(StoredHttpResponse response)
+    internal static string SerializeSafeHeaders(StoredHttpResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
         if (response.StatusCode is < 200 or > 299)
