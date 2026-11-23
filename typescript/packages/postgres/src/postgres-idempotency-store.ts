@@ -180,7 +180,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
   }
 }
 
-function readResponse(row: ExistingRow): StoredHttpResponse {
+export function readResponse(row: ExistingRow): StoredHttpResponse {
   if (row.response_status === null || row.response_content_type === null ||
       row.response_body === null || row.response_headers === null)
     throw new Error("Incomplete stored completed response.");
@@ -211,7 +211,7 @@ function validateMs(value: number, maximum: number): void {
     throw new RangeError("Duration must be an integer in milliseconds within supported bounds.");
 }
 
-function validateResponse(response: StoredHttpResponse): Record<string, string> {
+export function validateResponse(response: StoredHttpResponse): Record<string, string> {
   if (!response || !Number.isInteger(response.statusCode) ||
       response.statusCode < 200 || response.statusCode > 299)
     throw new Error("Only 2xx completed responses can be stored.");
