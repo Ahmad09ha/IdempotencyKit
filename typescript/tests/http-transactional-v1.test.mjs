@@ -1,6 +1,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { fork } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import "reflect-metadata";
@@ -267,3 +268,124 @@ integration("12 concurrent HTTP retries commit one order", async () => {
   assert.equal(createCalls, before + 1);
   assert.equal(await count(key), 1);
 });
+
+function startHttpCrashWorker(mode) {
+  const child = fork(
+    fileURLToPath(new URL("./support/transactional-http-crash-worker.mjs", import.meta.url)),
+    [mode],
+    {
+      env: process.env,
+      stdio: ["ignore", "ignore", "pipe", "ipc"],
+    },
+  );
+  let stderr = "";
+  child.stderr?.on("data", data => { stderr += String(data); });
+  return { child, getStderr: () => stderr };
+}
+
+function waitForWorkerPhase(child, phase, getStderr) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("HTTP crash worker timeout at " + phase + ": " + getStderr()));
+    }, 15_000);
+
+    const onMessage = message => {
+      if (message?.phase !== phase) return;
+      cleanup();
+      resolve(message);
+    };
+    const onExit = (code, signal) => {
+      cleanup();
+      reject(new Error(
+        "HTTP crash worker exited before " + phase + " (code " +
+        code + ", signal " + signal + "): " + getStderr()));
+    };
+    const onError = error => {
+      cleanup();
+      reject(error);
+    };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.off("message", onMessage);
+      child.off("exit", onExit);
+      child.off("error", onError);
+    };
+
+    child.on("message", onMessage);
+    child.on("exit", onExit);
+    child.on("error", onError);
+  });
+}
+
+async function killHttpWorker(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exit = new Promise(resolve => child.once("exit", resolve));
+  if (!child.kill("SIGKILL")) throw new Error("Cannot SIGKILL HTTP test worker.");
+  await exit;
+}
+
+async function workerPost(port, key) {
+  const response = await fetch("http://127.0.0.1:" + port + "/orders/transactional", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+      "Content-Type": "application/json",
+      "X-Test-User": "alice",
+      "X-Test-Tenant": "acme",
+    },
+    body: JSON.stringify({ itemId: 11, quantity: 42 }),
+  });
+  return { status: response.status, body: await response.text() };
+}
+
+integration("real NestJS HTTP SIGKILL before COMMIT rolls back both rows and retry executes", async () => {
+  const key = "tx-http-crash-" + randomUUID();
+  const { child, getStderr } = startHttpCrashWorker("before-commit");
+  const ready = waitForWorkerPhase(child, "ready", getStderr);
+  try {
+    const { port } = await ready;
+    const checkpoint = waitForWorkerPhase(child, "before-commit", getStderr);
+    const pendingHttp = workerPost(port, key).then(
+      result => result, error => error);
+    await checkpoint;
+    assert.equal(await count(key), 0, "Uncommitted domain mutation is not visible.");
+    await killHttpWorker(child);
+    assert.ok((await pendingHttp) instanceof Error,
+      "Killing the server before COMMIT must not deliver HTTP success.");
+  } finally {
+    await killHttpWorker(child);
+  }
+  assert.equal(await count(key), 0);
+  const before = createCalls;
+  const retry = await request("/orders/transactional", { itemId: 11, quantity: 42 }, key);
+  assert.equal(retry.status, 201);
+  assert.equal(await count(key), 1);
+  assert.equal(createCalls, before + 1);
+});
+
+integration("real NestJS HTTP SIGKILL after COMMIT replays stored result without business reexecution", async () => {
+  const key = "tx-http-crash-" + randomUUID();
+  const { child, getStderr } = startHttpCrashWorker("after-commit");
+  const ready = waitForWorkerPhase(child, "ready", getStderr);
+  try {
+    const { port } = await ready;
+    const checkpoint = waitForWorkerPhase(child, "after-commit", getStderr);
+    const pendingHttp = workerPost(port, key).then(
+      result => result, error => error);
+    await checkpoint;
+    assert.equal(await count(key), 1, "Committed domain mutation must be visible.");
+    await killHttpWorker(child);
+    assert.ok((await pendingHttp) instanceof Error,
+      "Server died before sending any committed response.");
+  } finally {
+    await killHttpWorker(child);
+  }
+  const before = createCalls;
+  const retry = await request("/orders/transactional", { itemId: 11, quantity: 42 }, key);
+  assert.equal(retry.status, 201);
+  assert.equal(retry.body.quantity, 42);
+  assert.equal(await count(key), 1);
+  assert.equal(createCalls, before, "Same-key retry must not execute another business INSERT.");
+});
+
