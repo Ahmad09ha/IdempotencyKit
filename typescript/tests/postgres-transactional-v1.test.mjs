@@ -1,6 +1,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { fork } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
@@ -249,3 +250,95 @@ integration("database backend termination before COMMIT rolls both writes back",
   assert.equal(retry.status, "executed");
   assert.equal(await getCount("idempotencykit_txn_orders_test", key), 1);
 });
+
+function startCrashWorker(phase, key, hash) {
+  const worker = fork(
+    fileURLToPath(new URL("./support/transactional-sigkill-worker.mjs", import.meta.url)),
+    [phase, key, hash],
+    {
+      env: process.env,
+      stdio: ["ignore", "ignore", "pipe", "ipc"],
+    },
+  );
+  let stderr = "";
+  worker.stderr?.on("data", chunk => { stderr += String(chunk); });
+  const reached = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Transactional worker did not reach checkpoint: " + stderr));
+    }, 10_000);
+    worker.once("message", message => {
+      clearTimeout(timeout);
+      if (message?.phase === phase) resolve(message);
+      else reject(new Error("Unexpected worker message: " + JSON.stringify(message)));
+    });
+    worker.once("error", error => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    worker.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      reject(new Error(
+        "Worker exited before checkpoint (code " + code + ", signal " + signal + "): " + stderr));
+    });
+  });
+  return { worker, reached };
+}
+
+async function killAndWait(worker) {
+  if (worker.exitCode !== null || worker.signalCode !== null) return;
+  const ended = new Promise(resolve => worker.once("exit", resolve));
+  if (!worker.kill("SIGKILL")) throw new Error("Could not kill transaction test worker.");
+  await ended;
+}
+
+async function waitForCount(table, key, expected) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    if (await getCount(table, key) === expected) return;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  assert.equal(await getCount(table, key), expected);
+}
+
+integration("SIGKILL worker BEFORE COMMIT rolls back order and record", async () => {
+  const key = newKey(), hash = fingerprint(42);
+  const { worker, reached } = startCrashWorker("before-commit", key, hash);
+  try {
+    await reached;
+    // The worker inserted an order but has not committed either record.
+    assert.equal(await getCount("idempotencykit_txn_orders_test", key), 0);
+    assert.equal(await getCount("idempotencykit_records", key), 0);
+  } finally {
+    await killAndWait(worker);
+  }
+
+  await waitForCount("idempotencykit_txn_orders_test", key, 0);
+  await waitForCount("idempotencykit_records", key, 0);
+
+  const retry = await executor.execute(key, hash,
+    client => insertOrder(client, key, 42), 86_400_000);
+  assert.equal(retry.status, "executed");
+  assert.equal(await getCount("idempotencykit_txn_orders_test", key), 1);
+  assert.equal(await getCount("idempotencykit_records", key), 1);
+});
+
+integration("SIGKILL worker AFTER COMMIT replays without reexecuting order", async () => {
+  const key = newKey(), hash = fingerprint(42);
+  const { worker, reached } = startCrashWorker("after-commit", key, hash);
+  try {
+    const checkpoint = await reached;
+    assert.equal(checkpoint.status, "executed");
+    assert.equal(await getCount("idempotencykit_txn_orders_test", key), 1);
+    assert.equal(await getCount("idempotencykit_records", key), 1);
+  } finally {
+    await killAndWait(worker);
+  }
+
+  const result = await executor.execute(key, hash, async () => {
+    throw new Error("After committed SIGKILL, retry must replay, never reexecute.");
+  }, 86_400_000);
+  assert.equal(result.status, "replayed");
+  assert.equal(JSON.parse(Buffer.from(result.response.body).toString()).quantity, 42);
+  assert.equal(await getCount("idempotencykit_txn_orders_test", key), 1);
+  assert.equal(await getCount("idempotencykit_records", key), 1);
+});
+
