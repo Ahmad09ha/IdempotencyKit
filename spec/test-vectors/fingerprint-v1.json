@@ -1,0 +1,481 @@
+{
+  "schemaVersion": 1,
+  "scopeCases": [
+    {
+      "name": "same-scope",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-10",
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:112dd6a68e961d0326dc2d9929b26f5dc774aca3ae5ac816ccb61b84ace44268"
+    },
+    {
+      "name": "different-tenant",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-11",
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:71ea5992e206300d0935566ac9eb7f513ffa96d3188f71f5997cafc029dae862"
+    },
+    {
+      "name": "different-user",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-26",
+        "tenantId": "tenant-10",
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:4c2effaaf083d9e9df1057bfbf965fe540158b36013bd80fdcda4b5103d84ce5"
+    },
+    {
+      "name": "different-operation",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.cancel.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-10",
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:725dfcfcc8ba26f7c05bd3f764715cb7c29be64500b130d294792f8464c90f97"
+    },
+    {
+      "name": "different-key",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-10",
+        "clientKey": "order-xyz-999"
+      },
+      "expected": "v1:97daa23d60c6d36b4dc7510a0f3da7754de8c1fb1726c80813c4bfab0876b412"
+    },
+    {
+      "name": "no-tenant",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": null,
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:6d38361caaedace27f53b97c4384a687b1b4f939bf0418a6d391bfa2f59f1623"
+    },
+    {
+      "name": "empty-tenant",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "",
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:90d2831563a937e9ecae6c20b6dbd21db19e00f85a0fbabfc47625a60c30bbd0"
+    },
+    {
+      "name": "unicode-principal",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "مستخدم-٥",
+        "tenantId": "tenant-10",
+        "clientKey": "order-abc-123"
+      },
+      "expected": "v1:1f4dd4286827db6c46639ce82373f4c4f42e118ea98664952111ed040c669086"
+    }
+  ],
+  "fingerprintCases": [
+    {
+      "name": "basic-order",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      },
+      "expected": "v1:0340c4f5b85123546da9f236704a0d58e840f9f0ef18554bdd9457d56baf7ce4"
+    },
+    {
+      "name": "reordered-fields",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"quantity\":2,\"productId\":50}"
+      },
+      "expected": "v1:0340c4f5b85123546da9f236704a0d58e840f9f0ef18554bdd9457d56baf7ce4"
+    },
+    {
+      "name": "lowercase-method",
+      "request": {
+        "method": "post",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      },
+      "expected": "v1:0340c4f5b85123546da9f236704a0d58e840f9f0ef18554bdd9457d56baf7ce4"
+    },
+    {
+      "name": "changed-quantity",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":3}"
+      },
+      "expected": "v1:d68d9b688377ba92ad3b476faeb0b5c709c117ce4ec8e83523399406902d5185"
+    },
+    {
+      "name": "different-path",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders/50",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      },
+      "expected": "v1:4f00a5b0c4cd7390ef93716485b421a029ca9e488a4547e0115ad8b3c6b3f39e"
+    },
+    {
+      "name": "different-operation",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.update.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      },
+      "expected": "v1:ea2a8c3ad77b61200e3be69578d05b97fc8b2592b3666b741ac702478e34938a"
+    },
+    {
+      "name": "query-order-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}",
+        "query": [
+          {
+            "name": "z",
+            "value": "2"
+          },
+          {
+            "name": "a",
+            "value": "1"
+          },
+          {
+            "name": "a",
+            "value": "2"
+          }
+        ]
+      },
+      "expected": "v1:c0fdcfd29c6305435f2cf8ab021a09b3add20be2486b40b6ce0fa6679a3fe545"
+    },
+    {
+      "name": "query-order-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}",
+        "query": [
+          {
+            "name": "a",
+            "value": "2"
+          },
+          {
+            "name": "a",
+            "value": "1"
+          },
+          {
+            "name": "z",
+            "value": "2"
+          }
+        ]
+      },
+      "expected": "v1:c0fdcfd29c6305435f2cf8ab021a09b3add20be2486b40b6ce0fa6679a3fe545"
+    },
+    {
+      "name": "query-duplicate-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}",
+        "query": [
+          {
+            "name": "tag",
+            "value": "a"
+          },
+          {
+            "name": "tag",
+            "value": "a"
+          }
+        ]
+      },
+      "expected": "v1:b6b7a1ad7f15ba8fc8dfc4baa66ae6a389502f0378269d3ec11a2a17657f8f47"
+    },
+    {
+      "name": "query-duplicate-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}",
+        "query": [
+          {
+            "name": "tag",
+            "value": "a"
+          }
+        ]
+      },
+      "expected": "v1:8d08bf6d75245cbe15a76a301ca7d47652d57e98d10df8d92158b95124b18f0b"
+    },
+    {
+      "name": "no-body",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": null
+      },
+      "expected": "v1:fb2a7194289e6137406a3609d03716048c9997e54c748f82dea4237f5c572e78"
+    },
+    {
+      "name": "json-null",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "null"
+      },
+      "expected": "v1:0276908ede5b7dbcb96f48af4ba68cd1f06f8ac60f69b294e57f953c7c7b8811"
+    },
+    {
+      "name": "unicode-big-decimal-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"name\":\"قهوة\",\"price\":19.90,\"big\":9007199254740993,\"x\":1e+3}"
+      },
+      "expected": "v1:d773071e5095fea61fde4695efbb73978f90fa2ee3e04d707bb7388c0528e87a"
+    },
+    {
+      "name": "unicode-big-decimal-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"x\":1000,\"big\":9007199254740993,\"price\":19.9,\"name\":\"\\u0642\\u0647\\u0648\\u0629\"}"
+      },
+      "expected": "v1:d773071e5095fea61fde4695efbb73978f90fa2ee3e04d707bb7388c0528e87a"
+    },
+    {
+      "name": "array-order-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "[1,2,3]"
+      },
+      "expected": "v1:b623b4aeac5ad4e1ec2c4e512fb700f66a243a8d33ab6f257ce359a963d3ed51"
+    },
+    {
+      "name": "array-order-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "[3,2,1]"
+      },
+      "expected": "v1:ae6f925229f7a6a9128a402dd5f0f6007ee5913de876fee7955216cbec7d87e7"
+    },
+    {
+      "name": "escape-newline-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"text\":\"\\n\"}"
+      },
+      "expected": "v1:891f7cfc6b7a57fb98dd961ef6246419127d6bb078c7086f095979d33a88944a"
+    },
+    {
+      "name": "escape-newline-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"text\":\"\\u000a\"}"
+      },
+      "expected": "v1:891f7cfc6b7a57fb98dd961ef6246419127d6bb078c7086f095979d33a88944a"
+    },
+    {
+      "name": "decimal-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"price\":0.0012300,\"zero\":-0.0}"
+      },
+      "expected": "v1:aceffbfe77bbe40446b62e77afe3bfd6a5f2337805a56ff524304afcfa621d72"
+    },
+    {
+      "name": "decimal-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"zero\":0,\"price\":123e-5}"
+      },
+      "expected": "v1:aceffbfe77bbe40446b62e77afe3bfd6a5f2337805a56ff524304afcfa621d72"
+    },
+    {
+      "name": "slash-a",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"url\":\"a/b\"}"
+      },
+      "expected": "v1:1a18800618967a0cbd090778570320349a1549d34a81e009ba427e18b9a3f8f7"
+    },
+    {
+      "name": "slash-b",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"url\":\"a\\/b\"}"
+      },
+      "expected": "v1:1a18800618967a0cbd090778570320349a1549d34a81e009ba427e18b9a3f8f7"
+    }
+  ],
+  "invalidCases": [
+    {
+      "name": "empty-key",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-10",
+        "clientKey": ""
+      }
+    },
+    {
+      "name": "key-whitespace",
+      "scope": {
+        "namespace": "wasel-api",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-10",
+        "clientKey": "hello world"
+      }
+    },
+    {
+      "name": "missing-namespace",
+      "scope": {
+        "namespace": "",
+        "operationId": "orders.create.v1",
+        "principalId": "user-25",
+        "tenantId": "tenant-10",
+        "clientKey": "order-abc-123"
+      }
+    },
+    {
+      "name": "bad-method",
+      "request": {
+        "method": "PO ST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      }
+    },
+    {
+      "name": "bad-path",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "orders",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      }
+    },
+    {
+      "name": "query-in-path",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders?test=1",
+        "bodyJson": "{\"productId\":50,\"quantity\":2}"
+      }
+    },
+    {
+      "name": "invalid-json",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":}"
+      }
+    },
+    {
+      "name": "duplicate-object-keys",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":1,\"a\":2}"
+      }
+    },
+    {
+      "name": "duplicate-unicode-escaped-keys",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":1,\"\\u0061\":2}"
+      }
+    },
+    {
+      "name": "unpaired-high-surrogate",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":\"\\uD800\"}"
+      }
+    },
+    {
+      "name": "unpaired-low-surrogate",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":\"\\uDC00\"}"
+      }
+    },
+    {
+      "name": "oversized-exponent",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":1e1000001}"
+      }
+    },
+    {
+      "name": "trailing-comma",
+      "request": {
+        "method": "POST",
+        "operationId": "orders.create.v1",
+        "path": "/api/orders",
+        "bodyJson": "{\"a\":1,}"
+      }
+    }
+  ]
+}
