@@ -134,7 +134,11 @@ public sealed class HttpStandardTests(PostgresHttpFixture fixture) : IClassFixtu
                 services.AddSingleton(counters);
                 services.AddSingleton<IIdempotencyStore>(
                     new PostgresIdempotencyStore(fixture.DataSource));
-                services.AddSingleton(new PostgresTransactionalExecutor(fixture.DataSource));
+                // Each HTTP host has its own real pool but the same database.
+                // Exercise the public provider-specific DI registration API.
+                services.AddSingleton<NpgsqlDataSource>(_ =>
+                    NpgsqlDataSource.Create(fixture.DataSource.ConnectionString));
+                services.AddPostgresTransactionalIdempotency();
                 services.AddIdempotencyKit(options =>
                 {
                     options.Namespace = "idempotencykit-http-test";
