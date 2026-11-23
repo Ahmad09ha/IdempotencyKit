@@ -69,6 +69,14 @@ export class PostgresTransactionalExecutor {
 
     const client = await this.pool.connect();
     let openTransaction = false;
+    let releaseError: Error | undefined;
+    // An interrupted backend may emit a late 'error' event in addition to
+    // rejecting a query. A listener protects the active PoolClient; returning
+    // it to the pool with an error ensures the broken socket is discarded.
+    const onClientError = (error: Error): void => {
+      releaseError ??= error;
+    };
+    client.on("error", onClientError);
     try {
       await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
       openTransaction = true;
@@ -162,14 +170,26 @@ export class PostgresTransactionalExecutor {
         ...response, headers: safeHeaders,
       } };
     } catch (error) {
+      releaseError ??= error instanceof Error ? error : new Error(String(error));
       if (openTransaction) {
-        try { await client.query("ROLLBACK"); } catch { /* Connection may already be broken. */ }
+        try { await client.query("ROLLBACK"); }
+        catch (rollbackError) {
+          releaseError ??= rollbackError instanceof Error
+            ? rollbackError : new Error("Rollback connection failure.");
+        }
       }
       // Do not automatically retry a failed/ambiguous commit: the caller must
       // resolve the same scoped key against the authoritative primary first.
       throw error;
     } finally {
-      client.release();
+      if (releaseError) {
+        // Destroy the unhealthy client instead of letting a delayed socket
+        // error escape as an uncaught EventEmitter error after the query ends.
+        client.release(releaseError);
+      } else {
+        client.removeListener("error", onClientError);
+        client.release();
+      }
     }
   }
 }
