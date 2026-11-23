@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: first core feature implemented in a development branch.** Both .NET and TypeScript cores now provide scoped request identity hashes and deterministic SHA-256 JSON request fingerprints with shared golden-vector tests. **The HTTP idempotency engine, PostgreSQL store, transactional protection, and claimed failure guarantees are not implemented yet.** Neither sample API protects write requests.
+> **Project status: core hashing + PostgreSQL Standard-mode storage implementation.** Both .NET and TypeScript cores support scoped SHA-256 request fingerprints; their PostgreSQL adapters now implement atomic key claims, completed-response storage, fingerprint checks, stale-owner fencing, conservative expiry handling, and explicit retention cleanup. **The ASP.NET Core / NestJS HTTP middleware, transactional business-write integration, and production-hardening are NOT implemented.** The Orders sample APIs still expose only health endpoints.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -211,7 +211,23 @@ The first core milestone now has actual code in both languages, plus shared gold
 - Inputs include an authenticated scope, key, method, operation ID, path, decoded query pairs, and original JSON body text.
 - SHA-256 results are prefixed `v1:`. The custom canonicalization format **IK-CJSON/1 is not RFC 8785/JCS**; consult [the exact algorithm and limits](spec/IDENTITY_AND_FINGERPRINT.md).
 
-This only makes operations **recognizable and comparable**. Storage coordination, duplicate prevention and response replay will be implemented separately.
+This phase began with deterministic request comparison. The next step is an independently callable PostgreSQL Standard-mode storage API. **Neither the fingerprints nor the store alone protect an HTTP endpoint:** applications must later integrate the store with their authentication, business handlers, result serialization, and recovery policies.
+
+## Implemented: PostgreSQL Standard-mode store
+
+**Migration (required):** [`spec/sql/postgres/001_idempotencykit_records.sql`](spec/sql/postgres/001_idempotencykit_records.sql). Execute it using your database migration pipeline before calling the store.
+
+- **.NET:** [`PostgresIdempotencyStore`](dotnet/src/IdempotencyKit.Postgres/PostgresIdempotencyStore.cs), implementing `IIdempotencyStore` through Npgsql 10.
+- **TypeScript:** [`PostgresIdempotencyStore`](typescript/packages/postgres/src/postgres-idempotency-store.ts), implementing the same contract through node-postgres.
+- **Claim decisions:** `Acquired`, `InProgress`, `Completed`, `FingerprintMismatch`, `Uncertain`.
+- **Owner fencing:** only a matching, unexpired owner can complete or extend a lease.
+- **Response data:** bounded successful JSON response bytes and a strict safe-header allowlist.
+- **Conservative expiry:** expired processing claims become `Uncertain`, never automatically reexecuted.
+- **Cleanup:** explicit batch deletion of expired **completed** records only.
+
+For the exact state machine, failure boundaries and API examples, read [PostgreSQL Store v1](spec/POSTGRES_STORE_V1.md).
+
+**Warning:** This is a **storage building block**, not the fully functional package that developers will eventually install. If a handler commits business changes and then fails before storing the result, Standard mode cannot prove whether retrying is safe; the claim must be reconciled. Transactional mode will be designed separately.
 
 ## Development roadmap
 

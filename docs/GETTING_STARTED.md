@@ -1,50 +1,77 @@
-# Getting Started: Project Scaffolds
+# Getting Started: Core libraries and PostgreSQL Standard-mode storage
 
-> These are **working-project scaffolds to build and run**, not finished idempotency packages. At this stage there is NO retry protection for write endpoints.
+> **Important:** There is no active HTTP protection in either Orders sample yet. This page shows how to build and test the core and storage layers. A successful health check does NOT demonstrate idempotency.
 
-## .NET solution
+## Prerequisites
 
-Requires the .NET 10 SDK:
+- .NET 10 SDK; a supported Node 24 runtime with npm.
+- **PostgreSQL 15+** (CI tests against PostgreSQL 17).
+- Apply [the shared migration](../spec/sql/postgres/001_idempotencykit_records.sql) before initializing either store.
+
+An isolated test database can be started with Docker:
+
+~~~bash
+docker run --rm --name idempotencykit-test -e POSTGRES_PASSWORD=testpass -p 5432:5432 -d postgres:17
+~~~
+
+Apply the migration with PostgreSQL's `psql` (from the repository root):
+
+~~~bash
+psql "postgresql://postgres:testpass@127.0.0.1:5432/postgres" -f spec/sql/postgres/001_idempotencykit_records.sql
+~~~
+
+**Never use those demonstration credentials in a real deployment.** Use an isolated database, restricted accounts, TLS where appropriate, and an ordinary versioned migration workflow.
+
+## .NET
+
+From the repository root:
 
 ~~~bash
 cd dotnet
 dotnet restore IdempotencyKit.slnx
 dotnet build IdempotencyKit.slnx -c Release
-dotnet test IdempotencyKit.slnx -c Release
-dotnet run --project samples/Orders.AspNetCore
 ~~~
 
-Open the `/health` endpoint printed by the sample app. Packages currently contain core identity/record types and build markers, not functioning middleware or storage.
+To run the **real PostgreSQL** test suite set `IDEMPOTENCYKIT_TEST_POSTGRES` to an isolated database connection string, then:
 
-## NestJS workspace
+~~~bash
+dotnet test IdempotencyKit.slnx -c Release
+~~~
 
-Requires a recent Node 24 LTS, npm, and an internet connection for dependency installation:
+The new `IdempotencyKit.Postgres.Tests` project tests concurrent claims, replay, owner fencing, lease expiry, unsafe response headers and retention cleanup. It **requires PostgreSQL**. `Orders.AspNetCore` still serves only `GET /health`.
+
+## TypeScript / NestJS
 
 ~~~bash
 cd typescript
 npm install
 npm run build
-npm test
-npm run start:orders
 ~~~
 
-Open `http://localhost:3000/health`. The npm workspaces include `@idempotencykit/core`, `@idempotencykit/nestjs`, `@idempotencykit/postgres` and the sample `@idempotencykit/orders-api`.
+To run real PostgreSQL tests, set `IDEMPOTENCYKIT_TEST_POSTGRES_URL` to a database URL, then:
 
-### Lockfile policy
+~~~bash
+npm test
+~~~
 
-No npm lockfile was generated for the initial commit because registry access was not available in the authoring environment. After `npm install` succeeds, commit `typescript/package-lock.json`, then change the CI install step to `npm ci` for repeatability.
+The `typescript/tests/postgres-v1.test.mjs` integration suite skips database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests. The NestJS sample still serves only `GET /health`.
 
-## Development checkpoints
+## Store API outline
 
-- [x] Create a .NET 10 solution with core, ASP.NET Core, PostgreSQL, tests, and sample projects.
-- [x] Create TypeScript/npm workspaces, NestJS 12 host, and basic scaffold tests.
-- [x] Add scaffold CI configuration.
-- [ ] Observe successful `dotnet build` and `dotnet test` runs.
-- [ ] Observe successful `npm run build` and `npm test` runs.
-- [ ] Build and verify the actual idempotency engine and PostgreSQL integration.
+~~~text
+TryClaim(scopeKeyHash, requestFingerprint, leaseDuration)
+  => Acquired(ownerToken) | InProgress | Completed(response) | FingerprintMismatch | Uncertain
 
-## First feature milestone
+TryComplete(scopeKeyHash, requestFingerprint, ownerToken, response, retention)
+  => true only when matching current unexpired lease
 
-Implement a bounded, scoped, atomic PostgreSQL claim and safe same-request response replay in one framework, with failure tests. Port the **same HTTP contract** to the other framework rather than independently inventing API behavior.
+TryExtendLease(scopeKeyHash, ownerToken, leaseDuration)
+  => true only for current unexpired owner
 
-See [Roadmap](ROADMAP.md), [Guarantees](../spec/GUARANTEES.md), and [Failure Matrix](../spec/FAILURE_MATRIX.md).
+PurgeExpiredCompleted(batchSize)
+  => number of removed completed records after their retention window
+~~~
+
+**Never automatically retry an `Uncertain` operation:** the prior worker could already have produced business effects. Applying the migration and calling these storage methods is not the same as enabling an idempotent controller or NestJS interceptor.
+
+See [PostgreSQL Store v1](../spec/POSTGRES_STORE_V1.md), [Guarantees](../spec/GUARANTEES.md), and [Roadmap](ROADMAP.md).

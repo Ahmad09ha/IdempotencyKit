@@ -1,42 +1,43 @@
-# NestJS / TypeScript workspace (scaffold)
+# NestJS / TypeScript workspace
 
-This is an **npm workspace** with three library packages and one NestJS 12 sample application.
+This npm workspace includes an **implemented Standard-mode PostgreSQL store** plus a TypeScript core, but the NestJS HTTP integration is **still a scaffold**.
 
-- `packages/core` — language-native contracts and state helpers (not a full engine).
-- `packages/nestjs` — an **empty** `IdempotencyKitModule`; no interceptor/decorator or protection yet.
-- `packages/postgres` — placeholder for a future PostgreSQL store.
-- `apps/orders-api` — a real NestJS app exposing **GET /health** only.
+- `@idempotencykit/core`: scoped request hashes, deterministic JSON fingerprints and `IdempotencyStore` contracts.
+- `@idempotencykit/postgres`: node-postgres implementation using PostgreSQL's unique constraints and atomic updates.
+- `@idempotencykit/nestjs`: empty module, **no interceptor/decorator yet**.
+- `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
 
-**No idempotency middleware, persistence, transactional integration or concurrency-safe processing is implemented.** All packages are marked `private` and `0.0.0` to prevent accidental publishing.
-
-## Prerequisites
-
-- Node.js **24 LTS** recommended. NestJS 12's current CLI generators require Node 22.22.3+ (on the 22.x line) or Node 24.15+; Node 24 LTS on a current patch is preferred.
-- npm and an internet connection to install dependencies.
-- The workspace uses TypeScript **6** with native ESM (`"type": "module"` and `NodeNext` resolution).
-
-## Quick start
+## Build
 
 ~~~bash
 cd typescript
 npm install
 npm run build
-npm test
-npm run start:orders
 ~~~
 
-Visit `http://localhost:3000/health`. The response contains `"idempotency": "scaffold-only"`.
+## PostgreSQL tests
 
-The root `npm run build` command compiles packages in dependency order before compiling the sample. Each library's JavaScript and declarations are emitted under its own `dist/` folder.
+Apply the migration `../spec/sql/postgres/001_idempotencykit_records.sql`. Set `IDEMPOTENCYKIT_TEST_POSTGRES_URL` to an **isolated** test database, e.g. `postgresql://postgres:testpass@127.0.0.1:5432/postgres`, then:
 
-> The workspace has no lockfile yet because external npm registry access was unavailable while creating this scaffold. After a successful `npm install`, commit the generated `package-lock.json` for reproducible `npm ci` builds.
+~~~bash
+npm test
+~~~
 
-## Planned next steps
+When the environment variable is absent, the PostgreSQL-specific Node tests **skip**; CI always supplies a real PostgreSQL 17 server to exercise them. The test suite covers concurrent atomic claims, mismatches, replay, owner fencing, expiry, response limits and cleanup.
 
-1. Implement the shared fingerprint and scoped identity contract.
-2. Implement a PostgreSQL atomic claim/complete store.
-3. Add the NestJS decorator and interceptor.
-4. Introduce a transaction-aware operation API and test failures using a real database.
-5. Add cross-language parity fixtures and a Docker-based failure lab.
+## Programmatic storage usage (illustration)
 
-See `../spec/HTTP_CONTRACT.md` and `../docs/ROADMAP.md`.
+~~~typescript
+import pg from "pg";
+import { PostgresIdempotencyStore } from "@idempotencykit/postgres";
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const store = new PostgresIdempotencyStore(pool);
+const claim = await store.tryClaim(scopeKeyHash, fingerprint, 30_000);
+// Check claim.status before deciding whether to execute the business handler.
+~~~
+
+Caller must authenticate/authorize, construct the scoped identity, handle the claim outcome and use the correct policy for Standard-mode uncertain results. **This package does not yet transparently protect NestJS routes.**
+
+All packages remain `private`/`0.0.0`; do not publish before the API, operational contract, and tests are finalized.
+
+See `../spec/POSTGRES_STORE_V1.md` and `../docs/GETTING_STARTED.md`.

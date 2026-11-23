@@ -1,29 +1,41 @@
-# .NET workspace (scaffold)
+# .NET 10 workspace
 
-The solution contains a **core contracts library**, separate **ASP.NET Core** and **PostgreSQL** adapter projects, a simple **sample Minimal API**, and a **xUnit** test project.
+The solution contains core fingerprint types, a **working PostgreSQL Standard-mode storage adapter**, an ASP.NET Core integration scaffold, xUnit tests, and a sample health-only API.
 
-No request filter, PostgreSQL store, or working idempotency engine has been implemented yet. The sample only exposes `GET /health`.
+- `IdempotencyKit.Core`: scoped identity, canonical JSON request fingerprints, storage contracts.
+- `IdempotencyKit.Postgres`: atomic claims, owner-lease fencing, completed JSON response persistence and replay data, conservative `Uncertain` handling and explicit purge.
+- `IdempotencyKit.AspNetCore`: **not implemented** beyond scaffold.
+- `IdempotencyKit.Postgres.Tests`: real PostgreSQL integration tests.
 
-## Requirements
-
-- .NET 10 SDK (LTS). The solution uses `net10.0` and a `global.json` that allows newer .NET 10 feature bands.
-- NuGet package access for the test project.
-
-## Commands
+## Build
 
 ~~~bash
 cd dotnet
 dotnet restore IdempotencyKit.slnx
-dotnet build IdempotencyKit.slnx --configuration Release
-dotnet test IdempotencyKit.slnx --configuration Release
-dotnet run --project samples/Orders.AspNetCore
+dotnet build IdempotencyKit.slnx -c Release
 ~~~
 
-Query `/health` on the URL printed by ASP.NET Core. The response says `"idempotency": "scaffold-only"` to avoid suggesting write requests are protected.
+## Integration tests
 
-## Next work
+Apply the SQL migration `../spec/sql/postgres/001_idempotencykit_records.sql` first. Set `IDEMPOTENCYKIT_TEST_POSTGRES` to an isolated PostgreSQL test database (e.g. `Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=testpass`), then:
 
-1. Freeze request identity and fingerprint test vectors from `../spec`.
-2. Build atomic claim/state transitions and a real PostgreSQL integration.
-3. Implement ASP.NET Core endpoint filters and MVC integration.
-4. Build crash-safe transactional integration and concurrency tests.
+~~~bash
+dotnet test IdempotencyKit.slnx -c Release
+~~~
+
+The tests use the **real** DB and require a working connection. See `../docs/GETTING_STARTED.md`.
+
+## Programmatic storage usage (illustration of implemented store API)
+
+~~~csharp
+await using var dataSource = Npgsql.NpgsqlDataSource.Create(connectionString);
+IIdempotencyStore store = new PostgresIdempotencyStore(dataSource);
+
+var claim = await store.TryClaimAsync(scopeKeyHash, fingerprint, TimeSpan.FromSeconds(30));
+// ClaimStatus.Acquired => hold owner token; Completed => stored response;
+// InProgress / FingerprintMismatch / Uncertain => no handler execution.
+~~~
+
+This is not a complete sample API. **Do not assume calling TryClaim makes arbitrary subsequent business writes atomic**. The eventual ASP.NET Core middleware and Transactional mode are future milestones.
+
+The `Orders.AspNetCore` sample still exposes `GET /health` only.
