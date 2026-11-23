@@ -60,7 +60,7 @@ The `typescript/tests/postgres-v1.test.mjs`, `typescript/tests/http-standard-v1.
 
 For database mutations that must commit atomically with the replay record, use `PostgresTransactionalExecutor` from the relevant PostgreSQL package. Both implementations open a transaction and provide **the exact database connection** that the callback must use. The callback returns a bounded JSON response which is saved **before** the single `COMMIT`.
 
-See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) for real Npgsql and `pg.PoolClient` examples, result mapping, commit-ack ambiguity, and the critical warning **not to stack Standard-mode decorators around the same transactional operation**. This is source-only and has no EF Core adapter yet.
+See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) for the Npgsql/`pg.PoolClient` callback API and [Transactional HTTP + EF Core](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) for `MapTransactionalPost`, EF Core shared-transaction contexts and NestJS `handleExpress`. **Do not stack Standard-mode decorators around the same transactional operation**. This is source-only and has no EF Core adapter yet.
 
 ## Store API outline
 

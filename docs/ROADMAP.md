@@ -21,7 +21,7 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL **same-transaction business callback** now exists in both languages, but there is **no EF Core adapter, transactional HTTP decorator, publication, or automated reconciliation**.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. No SQL Server/SQLite adapters, universal transactional annotations, publication or automated reconciliation are available.
 
 ## Phase 1 — .NET Standard mode
 
@@ -52,14 +52,23 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 ## Phase 3 — Transactional mode
 
 - [x] Define and implement explicit Npgsql and node-postgres transaction-aware callbacks.
-- [ ] Implement dedicated EF Core/PostgreSQL shared transaction adapter (not yet supported as a packaged feature).
+- [x] Implement EF Core 10/PostgreSQL shared-connection adapter that verifies the exact connection, enlists `UseTransactionAsync` and saves tracked changes before COMMIT.
 - [x] Implement PostgreSQL `pg.PoolClient` callback usable from NestJS services, with one owned BEGIN/COMMIT/ROLLBACK transaction.
 - [x] Validate/serialize supported JSON response before COMMIT; exercise business-row + idempotency-row atomicity against real PostgreSQL.
 - [x] Simulate database-backend termination before COMMIT and verify both rows roll back; verify completed retry replay.
 - [x] Demonstrate real forked Node worker-process SIGKILL before and after COMMIT, validating database rollback and replay.
-- [ ] Demonstrate full HTTP API-process SIGKILL before/after commit and client HTTP retry across restarted hosts.
+- [x] Demonstrate live NestJS Express HTTP server SIGKILL before and after COMMIT, with a same-key retry through a surviving test host.
+- [ ] Build equivalent full ASP.NET Core server-process SIGKILL/restart scenarios.
 
 **Exit:** one committed business effect and replayable result in verified failure windows.
+
+## Next planning milestone — more database providers
+
+- [ ] Define a provider-neutral transactional session, claim/replay and response contract that can share hashing and HTTP policies.
+- [ ] Design SQL Server concurrency and transaction semantics with `Microsoft.Data.SqlClient` and EF Core SQL Server.
+- [ ] Design SQLite WAL/busy-timeout, one-writer semantics and single-node durability limitations.
+- [ ] Evaluate MySQL/MariaDB and other engines against the same failure matrix.
+- [ ] Add provider-specific migration versions, real-database stress tests and failure injection instead of assuming PostgreSQL SQL is portable.
 
 ## Phase 4 — Hardening and observability
 
