@@ -1,4 +1,4 @@
-export { IdempotencyKitModule } from "./idempotencykit.module.js";
+export { IdempotencyKitModule } from "./idempotency-options.js";
 export type {
   IdempotencyKitOptions, IdempotencyHttpRequest, IdempotencyCallerScope,
 } from "./idempotencykit.module.js";

@@ -1,18 +1,17 @@
 import {
-  BadRequestException, ConflictException, ForbiddenException,
+  BadRequestException, ConflictException,
   HttpException, HttpStatus, Inject, Injectable, Logger,
   ServiceUnavailableException, UnsupportedMediaTypeException,
   CallHandler, ExecutionContext, NestInterceptor,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { defer, firstValueFrom, Observable, of } from "rxjs";
+import { defer, lastValueFrom, Observable } from "rxjs";
 import {
   computeRequestFingerprint, computeScopeKey,
 } from "@idempotencykit/core";
 import type { StoredHttpResponse } from "@idempotencykit/core";
-import {
-  IDEMPOTENCY_HTTP_OPTIONS, IdempotencyKitOptions, IdempotencyHttpRequest,
-} from "./idempotencykit.module.js";
+import { IDEMPOTENCY_HTTP_OPTIONS } from "./idempotency-options.js";
+import type { IdempotencyKitOptions, IdempotencyHttpRequest } from "./idempotency-options.js";
 import {
   IDEMPOTENT_ROUTE_METADATA, IdempotentRouteMetadata,
 } from "./idempotent.decorator.js";
@@ -179,7 +178,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     scopeKey: string, fingerprint: string, ownerToken: string,
   ): Promise<unknown> {
     try {
-      const value: unknown = await firstValueFrom(next.handle());
+      const value: unknown = await lastValueFrom(next.handle());
       if (res.headersSent || res.statusCode < 200 || res.statusCode > 299)
         throw new Error("Unsupported status or manual response.");
 
