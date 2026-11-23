@@ -19,8 +19,15 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         var path = FindMigration();
         await using var conn = await DataSource.OpenConnectionAsync();
-        await using var command = new NpgsqlCommand(File.ReadAllText(path), conn);
+        await using var transaction = await conn.BeginTransactionAsync();
+        await using (var advisory = new NpgsqlCommand(
+            "SELECT pg_advisory_xact_lock(hashtext('idempotencykit_schema_001'))",
+            conn, transaction))
+            await advisory.ExecuteNonQueryAsync();
+
+        await using var command = new NpgsqlCommand(File.ReadAllText(path), conn, transaction);
         await command.ExecuteNonQueryAsync();
+        await transaction.CommitAsync();
     }
 
     public async Task DisposeAsync()

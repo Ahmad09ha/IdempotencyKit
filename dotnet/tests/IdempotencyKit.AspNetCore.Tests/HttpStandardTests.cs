@@ -90,8 +90,16 @@ public sealed class PostgresHttpFixture : IAsyncLifetime
             var path = Path.Combine(dir.FullName, "spec", "sql", "postgres",
                 "001_idempotencykit_records.sql");
             if (!File.Exists(path)) continue;
-            await using var command = new NpgsqlCommand(File.ReadAllText(path), connection);
+            await using var transaction = await connection.BeginTransactionAsync();
+            await using (var advisory = new NpgsqlCommand(
+                "SELECT pg_advisory_xact_lock(hashtext('idempotencykit_schema_001'))",
+                connection, transaction))
+                await advisory.ExecuteNonQueryAsync();
+
+            await using var command = new NpgsqlCommand(
+                File.ReadAllText(path), connection, transaction);
             await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
             return;
         }
         throw new FileNotFoundException("Migration fixture not found.");
