@@ -209,8 +209,9 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
             throw new ArgumentException("Only successful 2xx responses are supported.", nameof(response));
         if (response.Body is null || response.Body.Length > MaxResponseBytes)
             throw new ArgumentException("Response body exceeds 256 KiB or is missing.", nameof(response));
-        if (string.IsNullOrWhiteSpace(response.ContentType))
-            throw new ArgumentException("Response content type is required.", nameof(response));
+        if (string.IsNullOrWhiteSpace(response.ContentType) || response.ContentType.Length > 128 ||
+            response.ContentType.IndexOfAny(['\r', '\n']) >= 0)
+            throw new ArgumentException("Response content type is missing, oversized, or unsafe.", nameof(response));
         var type = response.ContentType.Split(';')[0].Trim();
         if (!type.Equals("application/json", StringComparison.OrdinalIgnoreCase) &&
             !type.Equals("application/problem+json", StringComparison.OrdinalIgnoreCase))

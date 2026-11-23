@@ -92,7 +92,7 @@ public sealed class PostgresStoreTests(PostgresFixture fixture) : IClassFixture<
         var claims = await Task.WhenAll(
             Enumerable.Range(0, 32).Select(_ =>
                 store.TryClaimAsync(key, fingerprint, TimeSpan.FromMinutes(1))));
-        Assert.Single(claims.Where(x => x.Status == IdempotencyClaimStatus.Acquired));
+        Assert.Single(claims, x => x.Status == IdempotencyClaimStatus.Acquired);
         Assert.Equal(31, claims.Count(x => x.Status == IdempotencyClaimStatus.InProgress));
 
         await using var conn = await fixture.DataSource.OpenConnectionAsync();
@@ -146,6 +146,10 @@ public sealed class PostgresStoreTests(PostgresFixture fixture) : IClassFixture<
         };
         await Assert.ThrowsAsync<ArgumentException>(() => store.TryCompleteAsync(
             key, fingerprint, claim.OwnerToken!.Value, unsafeResponse, TimeSpan.FromHours(1)));
+
+        var badContentType = Response() with { ContentType = "application/json;\r\nset-cookie: secret=1" };
+        await Assert.ThrowsAsync<ArgumentException>(() => store.TryCompleteAsync(
+            key, fingerprint, claim.OwnerToken!.Value, badContentType, TimeSpan.FromHours(1)));
 
         var giantResponse = Response() with { Body = new byte[262145] };
         await Assert.ThrowsAsync<ArgumentException>(() => store.TryCompleteAsync(

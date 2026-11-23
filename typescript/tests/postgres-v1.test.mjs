@@ -86,6 +86,8 @@ integration("unsafe headers and oversized bodies fail before storage", async () 
     { ...response(), headers: { "Set-Cookie": "secret=1" } }, 1000));
   await assert.rejects(() => store.tryComplete(id, hash, claim.ownerToken,
     { ...response(), body: new Uint8Array(262145) }, 1000));
+  await assert.rejects(() => store.tryComplete(id, hash, claim.ownerToken,
+    { ...response(), contentType: "application/json;\r\nset-cookie: secret=1" }, 1000));
   assert.equal(await store.tryComplete(id, hash, claim.ownerToken, response(), 1000), true);
 });
 

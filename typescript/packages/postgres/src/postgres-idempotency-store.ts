@@ -202,6 +202,7 @@ function validateResponse(response: StoredHttpResponse): Record<string, string> 
   if (!(response.body instanceof Uint8Array) || response.body.byteLength > MAX_BODY_BYTES)
     throw new Error("Response body exceeds 256 KiB or is invalid.");
   if (typeof response.contentType !== "string" ||
+      response.contentType.length > 128 || /[\r\n]/.test(response.contentType) ||
       !["application/json", "application/problem+json"].includes(
         response.contentType.split(";")[0]!.trim().toLowerCase()))
     throw new Error("Only JSON responses can be stored.");

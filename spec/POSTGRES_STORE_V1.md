@@ -54,7 +54,7 @@ Every operation uses parameterized SQL; neither adapter creates tables in reques
 - Input scope key and fingerprint: `v1:` plus lowercase 64-character hex digest.
 - Lease: 1 ms to 24 hours; response retention: 1 ms to 365 days.
 - Only HTTP **2xx** result statuses are stored in this first iteration.
-- Response body is raw bytes with maximum **256 KiB**; content type must be `application/json` or `application/problem+json`, optionally with parameters.
+- Response body is raw bytes with maximum **256 KiB**; content type must be `application/json` or `application/problem+json`, optionally with parameters, and must not contain CR/LF or exceed 128 characters.
 - Allowed stored response headers: `Location`, `ETag` and `Content-Language` (case-insensitive, canonicalized lowercase). `Set-Cookie` and arbitrary headers are rejected; CR/LF injection is rejected.
 - Completed records are retained **at least** until their expiration unless the database is manually modified. If no cleanup runs, an expired record may remain replayable *longer*. Once removed, the same key can be treated as new.
 - Unknown processing outcomes are never auto-purged. Operations teams must reconcile them against authoritative business identifiers.
