@@ -133,6 +133,12 @@ public sealed class PostgresTransactionalExecutor
                 TransactionalIdempotencyStatus.InProgress);
         }
 
+        // The short claim lock timeout should not leak into the caller's
+        // business SQL (which may use its own transaction timeout policy).
+        await using (var reset = new NpgsqlCommand(
+            "SELECT set_config('lock_timeout', '0', true)", connection, transaction))
+            await reset.ExecuteScalarAsync(cancellationToken);
+
         // The processing row is UNCOMMITTED until completion. No other
         // transaction can observe/reclaim it, and no free-floating lease is
         // used to make the decision to run the business callback.
@@ -176,11 +182,12 @@ public sealed class PostgresTransactionalExecutor
                     "Transactional idempotency completion lost its claim.");
         }
 
+        var storedHeaders = JsonSerializer.Deserialize<Dictionary<string, string>>(headersJson)
+            ?? throw new InvalidOperationException("Response header serialization failed.");
+
         // This single COMMIT is the atomic boundary for both the business SQL
         // and the persisted replay result. Never return success before commit.
         await transaction.CommitAsync(cancellationToken);
-        var storedHeaders = JsonSerializer.Deserialize<Dictionary<string, string>>(headersJson)
-            ?? throw new InvalidOperationException("Response header serialization failed.");
         return new TransactionalIdempotencyResult(
             TransactionalIdempotencyStatus.Executed,
             response with { Headers = storedHeaders });

@@ -126,6 +126,9 @@ export class PostgresTransactionalExecutor {
         return outcome;
       }
 
+      // The short claim lock timeout must not apply to business SQL as well.
+      await client.query("SELECT set_config('lock_timeout', '0', true)");
+
       // The business callback is the ONLY place domain writes should happen.
       // All of them must use this exact client/transaction.
       const response = await operation(client);
