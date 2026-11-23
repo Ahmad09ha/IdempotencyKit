@@ -2,6 +2,44 @@
 
 This file records **observed test results**, separately from planned guarantees. A test passing on a simulated failure or single CI host is **not** equivalent to production failure certification.
 
+
+## 2026-11-23 — EF Core 10 + PostgreSQL Transactional HTTP integration
+
+**Verified source commit:** `6ca75715397de09500185a288406956e20ac9b85` on feature branch `feature/efcore-transactional-http-v1`.  
+**GitHub Actions:** [run 45248594225](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45248594225). Both jobs built successfully and all tests passed against PostgreSQL 17.
+
+| Ecosystem | Test cases | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| .NET 10 (core + Npgsql + EF Core + ASP.NET Core) | 37 | **37** | 0 | 0 |
+| TypeScript / NestJS Express + PostgreSQL 17 | 36 | **36** | 0 | 0 |
+| **Combined** | **73** | **73** | **0** | **0** |
+
+.NET breakdown: 7 core, 12 PostgreSQL stores/transactional callbacks, 5 real EF Core, 13 HTTP integration tests. The TypeScript total includes 9 new transaction-aware HTTP tests (7 normal HTTP scenarios and 2 full live-server crash tests).
+
+### Verified new scenarios
+
+- **EF Core 10:** fresh DbContext configured with the executor's exact NpgsqlConnection; UseTransactionAsync; SaveChangesAsync + replay record committed together.
+- An EF Core callback that throws **after SaveChangesAsync** rolls back both the business row and idempotency row.
+- EF Core factory configured with a **different connection** is rejected before business execution.
+- Remaining EF tracked changes save before COMMIT; 12 concurrent same-key EF callbacks yield one committed business row.
+- **ASP.NET Core:** provider-specific `MapTransactionalPost` with raw-body fingerprinting, authenticated route and optional resource permission check.
+- ASP.NET Core returns the completed result across two HTTP hosts without running a second business callback, and rejects missing key/changed fingerprint.
+- ASP.NET Core transactional handler error rolls back instead of producing a Standard-mode uncertain record; 12 concurrent HTTP requests run one callback.
+- **NestJS Express:** explicitly called `PostgresTransactionalHttpService.handleExpress` on routes guarded before execution, with rawBody capture and exact stored JSON response emission.
+- NestJS tests cover replay, mismatch, in-flight 409, missing key 400, user/tenant isolation, fresh authorization denial, 12-way concurrent HTTP retries and rollback.
+- **Real HTTP server SIGKILL (Node):** a forked NestJS Express server receives an actual HTTP request and is killed while holding an uncommitted database transaction. The request fails; a retry through a surviving test host creates one order.
+- **Real HTTP server SIGKILL (Node):** a forked server commits the order and replay record, then is killed before responding; a same-key retry through the surviving host replays the stored JSON with **no additional INSERT**.
+
+### What these results do NOT establish
+
+- An equivalent **ASP.NET Core process** SIGKILL/restart lab has not been run.
+- There is no SQL Server/SQLite transactional adapter, multi-region PostgreSQL failover/replication test, or automatic transaction-aware controller decorator.
+- The tests use local CI PostgreSQL 17 with ordinary primary/connection durability. They do not certify asynchronous failover guarantees.
+- Authentication guards used in these specific tests are **test-only simulated identities**. Production real JWT/cookie verification, resource authorization, secrets/configuration and operational reconciliation remain the consuming application's responsibility.
+- Both PostgreSQL business operations and their completed responses share the specified transaction. This does **not** guarantee exactly-once external payments, email or cross-database side effects.
+
+For actual integration APIs and scope of support see [Transactional HTTP + EF Core v1](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md).
+
 ## 2026-11-23 — PostgreSQL Transactional Mode v1
 
 **Verified source commit:** `8b933cea92f72b15256a233884c85ac5100c16e1` on `feature/transactional-postgres-v1`.  

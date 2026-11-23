@@ -1,6 +1,6 @@
 # Failure and Recovery Matrix (proposed acceptance criteria)
 
-> This remains the **full acceptance backlog**, not a list of universally passing tests. Initial transactional integration tests now exercise commit + replay, callback exception rollback, response-validation rollback, 24 concurrent contenders and deliberately terminated PostgreSQL backends **before COMMIT**. Real Node **worker-process SIGKILL** before/after COMMIT has now passed; full HTTP-server restart/failover and post-COMMIT network failure lab are still pending. See [Transactional Mode v1](TRANSACTIONAL_MODE_V1.md).
+> This remains the **full acceptance backlog**, not a list of universally passing tests. Initial transactional integration tests now exercise commit + replay, callback exception rollback, response-validation rollback, 24 concurrent contenders and deliberately terminated PostgreSQL backends **before COMMIT**. Real Node **worker-process SIGKILL** and **live NestJS Express HTTP-server SIGKILL before/after COMMIT** have now passed, including same-key HTTP retry to a surviving server. Equivalent ASP.NET Core process-crash, database failover and network partition labs remain pending. See [Verification Evidence](../docs/VERIFICATION.md). See [Transactional Mode v1](TRANSACTIONAL_MODE_V1.md).
 
 | Scenario | Standard-mode expectation | Transactional-mode expectation |
 | --- | --- | --- |
