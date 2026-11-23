@@ -11,6 +11,17 @@ import {
 
 const url = process.env.IDEMPOTENCYKIT_TEST_POSTGRES_URL;
 const pool = url ? new pg.Pool({ connectionString: url, max: 32 }) : null;
+// Killing a PostgreSQL backend in a fault-injection test may emit a late pool
+// 'error' event after the failed query has already rejected. Capture it so
+// Node's test runner does not interpret the expected disconnect as unhandled.
+const unexpectedPoolErrors = [];
+let allowExpectedBackendTermination = false;
+pool?.on("error", error => {
+  if (allowExpectedBackendTermination &&
+      /connection terminated unexpectedly|terminating connection/i.test(error.message))
+    return;
+  unexpectedPoolErrors.push(error);
+});
 const executor = pool ? new PostgresTransactionalExecutor(pool) : null;
 const store = pool ? new PostgresIdempotencyStore(pool) : null;
 const integration = (name, callback) => test(name, { skip: !pool }, callback);
@@ -42,6 +53,8 @@ before(async () => {
 });
 after(async () => {
   if (pool) await pool.end();
+  assert.deepEqual(unexpectedPoolErrors, [],
+    "Unexpected background pool errors should fail the test.");
 });
 
 const newKey = () => computeScopeKey({
@@ -222,6 +235,7 @@ integration("transactional and Standard-mode stores interoperate without reexecu
 
 integration("database backend termination before COMMIT rolls both writes back", async () => {
   const key = newKey(), hash = fingerprint(8);
+  allowExpectedBackendTermination = true;
   await assert.rejects(() => executor.execute(key, hash, async client => {
     await insertOrder(client, key, 8);
     await client.query("SELECT pg_terminate_backend(pg_backend_pid())");
