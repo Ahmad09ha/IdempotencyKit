@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: core hashing + PostgreSQL Standard-mode storage implementation.** Both .NET and TypeScript cores support scoped SHA-256 request fingerprints; their PostgreSQL adapters now implement atomic key claims, completed-response storage, fingerprint checks, stale-owner fencing, conservative expiry handling, and explicit retention cleanup. **The ASP.NET Core / NestJS HTTP middleware, transactional business-write integration, and production-hardening are NOT implemented.** The Orders sample APIs still expose only health endpoints.
+> **Project status: Standard-mode HTTP integration implemented and tested in both frameworks.** .NET and TypeScript provide scoped SHA-256 fingerprints, PostgreSQL storage, and opt-in protected JSON HTTP endpoints with replay and conflict detection. **Transactional business-write safety, automatic reconciliation, Fastify support, distribution packages and production hardening are NOT implemented.** The Orders samples still expose only health endpoints; real PostgreSQL-backed HTTP test hosts exercise the protected routes.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -77,48 +77,51 @@ The lookup identity must include the **service namespace, stable operation ID, a
 
 See [HTTP Contract](spec/HTTP_CONTRACT.md) for the protocol, response handling, and open implementation decisions.
 
-## Illustrative developer experience (not working code yet)
 
-**ASP.NET Core (proposed):**
+## Use the implemented Standard-mode HTTP APIs
+
+**ASP.NET Core:** register `IIdempotencyStore` backed by `PostgresIdempotencyStore`, a trusted `ResolveCaller` function, and the middleware after authentication/authorization:
 
 ~~~csharp
 builder.Services.AddIdempotencyKit(options =>
 {
-    options.Retention = TimeSpan.FromHours(24);
-})
-.UsePostgres(connectionString);
+    options.Namespace = "orders-api";
+    options.ResolveCaller = ctx => new IdempotencyCallerScope(
+        ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value,
+        ctx.User.FindFirst("tenant_id")?.Value);
+});
+
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseIdempotencyKit();
 
 app.MapPost("/orders", CreateOrder)
    .RequireAuthorization()
-   .WithIdempotency();
+   .WithIdempotency("orders.create.v1");
 ~~~
 
-**NestJS (proposed):**
+MVC controllers use `[Idempotent("orders.create.v1")]` on authorized actions. **Implementation note:** .NET uses endpoint metadata plus **middleware before model binding**, not a pure endpoint filter, so it can fingerprint the original JSON.
+
+**NestJS (Express):** register `IdempotencyKitModule.forRoot(...)` with the store and a trusted guard-based `resolveCaller`, then:
 
 ~~~typescript
-@Module({
-  imports: [
-    IdempotencyKitModule.forRoot({
-      storage: "postgres",
-      retentionSeconds: 86400,
-    }),
-  ],
-})
-export class AppModule {}
+const app = await NestFactory.create(AppModule, { rawBody: true });
 
+// On a controller protected with your real authentication guard:
 @Post()
-@Idempotent({ required: true, mode: "standard" })
+@Idempotent("orders.create.v1")
 create(@Body() dto: CreateOrderDto) {
   return this.orders.create(dto);
 }
 ~~~
 
-For **transactional** guarantees, both implementations will additionally expose an explicit operation API that accepts or creates a shared database transaction. The code above represents the **Standard** experience only. The actual APIs may evolve during implementation.
+The snippets show actual API names but omit the consuming app's authentication, DI and business-service setup. **Neither package is published yet.** For complete registration, integration tests, limits and recovery guarantees, see [HTTP Standard Mode v1](docs/HTTP_STANDARD_V1.md).
 
-## Planned architecture
+## Architecture (Standard mode implemented; Transactional mode planned)
 
 ~~~text
-ASP.NET Core endpoint filter / MVC filter       NestJS decorator / interceptor
+ASP.NET Core metadata + middleware         NestJS decorator / interceptor
                    |                                      |
              .NET core engine                     TypeScript core engine
                    |                                      |
@@ -172,9 +175,9 @@ IdempotencyKit/
 └── lab/                     # planned Docker/failure experiments
 ~~~
 
-## Run the scaffolds
+## Build and test the workspaces
 
-> **Not production-ready**. These commands build the initial projects and run sample **health endpoints**; no idempotency protection is installed.
+> **Not production-ready**. The commands build both workspaces and run real PostgreSQL HTTP integration tests when the documented database environment variables are set. The standalone Orders sample apps remain health-only.
 
 **.NET 10 SDK** (from the repository root):
 
@@ -227,7 +230,17 @@ This phase began with deterministic request comparison. The next step is an inde
 
 For the exact state machine, failure boundaries and API examples, read [PostgreSQL Store v1](spec/POSTGRES_STORE_V1.md).
 
-**Warning:** This is a **storage building block**, not the fully functional package that developers will eventually install. If a handler commits business changes and then fails before storing the result, Standard mode cannot prove whether retrying is safe; the claim must be reconciled. Transactional mode will be designed separately.
+**Warning:** These storage methods now power opt-in JSON HTTP integrations. However, if a business handler commits before storing its idempotency result and then crashes, Standard mode cannot prove the outcome. An uncertain key needs explicit reconciliation. Transactional mode will be designed separately.
+
+
+## Implemented: HTTP Standard mode
+
+- **ASP.NET Core:** `AddIdempotencyKit`, `UseIdempotencyKit`, `.WithIdempotency("operation.id")` and MVC `[Idempotent("operation.id")]`.
+- **NestJS:** `IdempotencyKitModule.forRoot` and `@Idempotent("operation.id")` with a global, guard-aware interceptor and `rawBody: true`.
+- **Both:** PostgreSQL claims, completed-response replay, 409 in-progress conflicts, 422 fingerprint mismatches, 400 required-key handling, and conservative uncertain outcomes.
+- **End-to-end verification:** dedicated real PostgreSQL tests for HTTP handlers, not just mock storage tests.
+
+Read [HTTP Standard Mode v1](docs/HTTP_STANDARD_V1.md) for actual application setup and important limitations.
 
 ## Development roadmap
 
@@ -263,4 +276,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** implement an atomic PostgreSQL claim/complete store with conservative uncertain-outcome handling, then endpoint integration and replay. This hashing milestone does not yet guarantee idempotent HTTP behavior.
+**Next milestone:** add stronger crash/lease/serializer parity tests, explicit reconciliation support, and then a separate Transactional mode for atomic same-database business writes.
