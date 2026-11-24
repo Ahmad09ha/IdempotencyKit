@@ -310,7 +310,7 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - The first target is JSON REST writes; streaming, SSE, large file bodies, and manual/raw response writing are out of initial scope.
 - Transactional mode covers supported business mutations executed in the **same durable database transaction**.
 - Key deduplication is not a substitute for domain-level uniqueness, authentication, authorization, or payment-provider idempotency keys.
-- Redis, other database engines, response encryption, full performance benchmarks and a production security audit remain future work. EF Core 10 and transactional HTTP tests run on both PostgreSQL and SQL Server.
+- Redis, other database engines, response encryption, full performance benchmarks and a production security audit remain future work. EF Core 10 and transactional HTTP tests run on PostgreSQL, SQL Server and local-file SQLite.
 - A license has **not yet been selected**. Public visibility does not by itself grant open-source reuse rights.
 
 ## Design references

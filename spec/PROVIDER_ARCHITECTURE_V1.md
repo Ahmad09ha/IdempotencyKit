@@ -122,11 +122,11 @@ Do **not** add automatic uncertain-record reclaims just to make SQLite or SQL Se
 | Shared app deployment | Server database, verified in CI | Server database; SQL Server 2022 Docker CI verified | **Local file / one host** by default; not network WAL |
 | Atomic transactional callback | Implemented via Npgsql/pg | **Implemented** via SqlConnection/SqlTransaction and mssql.Transaction | **Implemented** SqliteConnection/SqliteTransaction and guarded Node 24 session |
 | Claim serialization | Unique index, uncommitted INSERT | **Implemented** unique PK plus transaction-owned per-key sp_getapplock | `BEGIN IMMEDIATE` single writer, unique index |
-| Standard-mode leases | Implemented | **Implemented**, owner-fenced and fail-closed uncertain | Planned local-file semantics |
+| Standard-mode leases | Implemented | **Implemented**, owner-fenced and fail-closed uncertain | **Implemented**, owner fencing and fail-closed uncertain expiry |
 | Queueing/timeout | PostgreSQL `lock_timeout` | **Implemented** bounded sp_getapplock same-key timeout | `busy_timeout` / `SQLITE_BUSY`; distinguish unrelated writer |
 | JSON replay storage | `bytea` + `jsonb` | `varbinary(max)` + `nvarchar(max)` | `BLOB` + `TEXT` |
 | EF Core | Npgsql tested | **EF Core 10 SQL Server tested** | **EF Core 10 SQLite on-disk tested** |
-| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **22 actual-file tests**, multi-process contention and SIGKILL before/after COMMIT |
+| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **48 real-file P4 tests**: core, EF Core, authenticated HTTP, process SIGKILL |
 
 No feature should be checked off for a provider until its real-database suite establishes the corresponding behavior.
 
