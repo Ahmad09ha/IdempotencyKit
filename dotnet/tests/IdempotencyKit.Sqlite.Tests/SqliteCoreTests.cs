@@ -22,7 +22,7 @@ public sealed class FileSqliteFixture : IAsyncLifetime
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS sqlite_orders_test (
+            CREATE TABLE IF NOT EXISTS orders_sqlite_test (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               scope_key_hash TEXT NOT NULL,
               quantity INTEGER NOT NULL
@@ -63,7 +63,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
 
     private async Task<long> CountAsync(string table, string key)
     {
-        if (table is not ("sqlite_orders_test" or "idempotencykit_records"))
+        if (table is not ("orders_sqlite_test" or "idempotencykit_records"))
             throw new ArgumentException("Unknown table.");
         await using var conn = fixture.Connection();
         await conn.OpenAsync();
@@ -81,7 +81,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
         cmd.CommandText = """
-            INSERT INTO sqlite_orders_test(scope_key_hash,quantity)
+            INSERT INTO orders_sqlite_test(scope_key_hash,quantity)
                 VALUES (@key,@qty) RETURNING id;
             """;
         cmd.Parameters.AddWithValue("@key", key);
@@ -176,7 +176,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
                 return await InsertAsync(conn,tx,ct,key,3);
             },TimeSpan.FromHours(1));
         Assert.Equal(TransactionalExecutionStatus.Executed,executed.Status);
-        Assert.Equal(1L,await CountAsync("sqlite_orders_test",key));
+        Assert.Equal(1L,await CountAsync("orders_sqlite_test",key));
         Assert.Equal(1L,await CountAsync("idempotencykit_records",key));
 
         var replay = await new SqliteTransactionalExecutor(fixture.DatabasePath)
@@ -209,7 +209,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
                 await InsertAsync(conn,tx,ct,key,5);
                 throw new InvalidOperationException("Fail after insert.");
             },TimeSpan.FromHours(1)));
-        Assert.Equal(0L,await CountAsync("sqlite_orders_test",key));
+        Assert.Equal(0L,await CountAsync("orders_sqlite_test",key));
         Assert.Equal(0L,await CountAsync("idempotencykit_records",key));
 
         await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -220,13 +220,13 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
                         ["Set-Cookie"] = "secret=unsafe" }
                 };
             },TimeSpan.FromHours(1)));
-        Assert.Equal(0L,await CountAsync("sqlite_orders_test",key));
+        Assert.Equal(0L,await CountAsync("orders_sqlite_test",key));
         Assert.Equal(0L,await CountAsync("idempotencykit_records",key));
         var success = await executor.ExecuteAsync(key,hash,
             (conn,tx,ct) => InsertAsync(conn,tx,ct,key,5),
             TimeSpan.FromHours(1));
         Assert.Equal(TransactionalExecutionStatus.Executed,success.Status);
-        Assert.Equal(1L,await CountAsync("sqlite_orders_test",key));
+        Assert.Equal(1L,await CountAsync("orders_sqlite_test",key));
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
         }));
         Assert.Equal(1,calls);
         Assert.Single(attempts,x=>x.Status==TransactionalExecutionStatus.Executed);
-        Assert.Equal(1L,await CountAsync("sqlite_orders_test",key));
+        Assert.Equal(1L,await CountAsync("orders_sqlite_test",key));
         Assert.Equal(1L,await CountAsync("idempotencykit_records",key));
         Assert.All(attempts,x=>Assert.Contains(x.Status,new[] {
             TransactionalExecutionStatus.Executed,TransactionalExecutionStatus.Replayed,
@@ -271,7 +271,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
         await using var tx=blocker.BeginTransaction(deferred:false);
         await using var held=blocker.CreateCommand();
         held.Transaction=tx;
-        held.CommandText="INSERT INTO sqlite_orders_test(scope_key_hash,quantity) VALUES ('unrelated-lock',1)";
+        held.CommandText="INSERT INTO orders_sqlite_test(scope_key_hash,quantity) VALUES ('unrelated-lock',1)";
         await held.ExecuteNonQueryAsync();
         var store = new SqliteIdempotencyStore(fixture.DatabasePath,1);
         var key=NewKey();

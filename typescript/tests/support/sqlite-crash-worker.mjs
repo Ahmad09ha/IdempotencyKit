@@ -11,13 +11,13 @@ if (!["before-commit", "after-commit", "unrelated-writer"].includes(mode) ||
     !process.send)
   throw new Error("SQLite worker must be forked with IPC and a known mode.");
 
-const never = () => new Promise(() => {});
+const never = () => new Promise(() => { setInterval(() => {}, 1_000); });
 
 if (mode === "unrelated-writer") {
   const db = new DatabaseSync(path, { timeout: 1000 });
   db.exec("BEGIN IMMEDIATE");
   db.prepare(
-    "INSERT INTO sqlite_orders_test(scope_key_hash,quantity) VALUES (?,?)",
+    "INSERT INTO orders_sqlite_test(scope_key_hash,quantity) VALUES (?,?)",
   ).run("unrelated-" + process.pid, 100);
   process.send({ phase: "locked" });
   await never();
@@ -25,7 +25,7 @@ if (mode === "unrelated-writer") {
   const executor = new SqliteTransactionalExecutor(path, 200);
   const result = await executor.execute(key, fingerprint, async session => {
     const inserted = session.prepare(
-      "INSERT INTO sqlite_orders_test(scope_key_hash,quantity) VALUES (?,?)",
+      "INSERT INTO orders_sqlite_test(scope_key_hash,quantity) VALUES (?,?)",
     ).run(key, 7);
     const id = Number(inserted.lastInsertRowid);
     if (mode === "before-commit") {

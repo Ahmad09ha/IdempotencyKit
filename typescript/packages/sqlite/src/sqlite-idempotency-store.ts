@@ -143,12 +143,12 @@ export class SqliteIdempotencyStore implements IdempotencyStore {
     return withLocalFileGate(this.file, async () => {
       const db = openSqliteDatabase(this.file, this.busyTimeoutMs);
       try {
-        return db.prepare(
+        return Number(db.prepare(
           "DELETE FROM idempotencykit_records WHERE scope_key_hash IN " +
           "(SELECT scope_key_hash FROM idempotencykit_records " +
           "WHERE state='completed' AND expires_at <= " + SQLITE_NOW_MS +
           " ORDER BY expires_at LIMIT ?)",
-        ).run(batchSize).changes;
+        ).run(batchSize).changes);
       } finally { db.close(); }
     });
   }

@@ -20,7 +20,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function open() { return new DatabaseSync(file, { timeout: 1_000 }); }
 function count(table, key) {
-  assert.ok(["sqlite_orders_test", "idempotencykit_records"].includes(table));
+  assert.ok(["orders_sqlite_test", "idempotencykit_records"].includes(table));
   const db = open();
   try {
     return db.prepare(
@@ -47,7 +47,7 @@ function response(id,qty) {
 }
 function insert(session,scope,qty) {
   const result = session.prepare(
-    "INSERT INTO sqlite_orders_test(scope_key_hash,quantity) VALUES (?,?)",
+    "INSERT INTO orders_sqlite_test(scope_key_hash,quantity) VALUES (?,?)",
   ).run(scope,qty);
   return response(Number(result.lastInsertRowid),qty);
 }
@@ -57,7 +57,7 @@ before(() => {
   const db = open();
   try {
     db.exec(`
-      CREATE TABLE IF NOT EXISTS sqlite_orders_test (
+      CREATE TABLE IF NOT EXISTS orders_sqlite_test (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         scope_key_hash TEXT NOT NULL,
         quantity INTEGER NOT NULL
@@ -129,7 +129,7 @@ test("Transactional SQLite stores business insert + replay in one durable COMMIT
     return insert(session,scope,3);
   },86_400_000);
   assert.equal(first.status,"executed");
-  assert.equal(count("sqlite_orders_test",scope),1);
+  assert.equal(count("orders_sqlite_test",scope),1);
   assert.equal(count("idempotencykit_records",scope),1);
   const another=new SqliteTransactionalExecutor(file);
   const replay=await another.execute(scope,hash,async () => {
@@ -152,18 +152,18 @@ test("Domain throw and unsafe replay capture roll back both domain and key", asy
     insert(session,scope,5);
     throw new Error("Fault after SQL INSERT");
   },86_400_000));
-  assert.equal(count("sqlite_orders_test",scope),0);
+  assert.equal(count("orders_sqlite_test",scope),0);
   assert.equal(count("idempotencykit_records",scope),0);
   await assert.rejects(()=>executor.execute(scope,hash,async session => {
     const captured=insert(session,scope,5);
     return { ...captured,headers:{"Set-Cookie":"token=unsafe"} };
   },86_400_000));
-  assert.equal(count("sqlite_orders_test",scope),0);
+  assert.equal(count("orders_sqlite_test",scope),0);
   assert.equal(count("idempotencykit_records",scope),0);
   const done=await executor.execute(scope,hash,
     async session=>insert(session,scope,5),86_400_000);
   assert.equal(done.status,"executed");
-  assert.equal(count("sqlite_orders_test",scope),1);
+  assert.equal(count("orders_sqlite_test",scope),1);
 });
 
 test("100 concurrent same-key calls through separate adapters insert one domain row", async () => {
@@ -178,7 +178,7 @@ test("100 concurrent same-key calls through separate adapters insert one domain 
   )));
   assert.equal(result.filter(x=>x.status==="executed").length,1);
   assert.equal(calls,1);
-  assert.equal(count("sqlite_orders_test",scope),1);
+  assert.equal(count("orders_sqlite_test",scope),1);
   assert.equal(count("idempotencykit_records",scope),1);
   assert.ok(result.every(x=>["executed","replayed"].includes(x.status)));
 });
@@ -218,7 +218,7 @@ test("transaction session rejects manual COMMIT and remains atomic", async () =>
     session.prepare("COMMIT");
     return response(1,13);
   },86_400_000));
-  assert.equal(count("sqlite_orders_test",scope),0);
+  assert.equal(count("orders_sqlite_test",scope),0);
   assert.equal(count("idempotencykit_records",scope),0);
 });
 
@@ -286,12 +286,12 @@ test("SIGKILL before COMMIT loses both SQLite domain INSERT and claim",async()=>
   const {worker,errors}=forkWorker("before-commit",scope,hash);
   try {await waitPhase(worker,"before-commit",errors);}
   finally {await killWorker(worker);}
-  assert.equal(count("sqlite_orders_test",scope),0);
+  assert.equal(count("orders_sqlite_test",scope),0);
   assert.equal(count("idempotencykit_records",scope),0);
   const again=await executor.execute(scope,hash,
     async session=>insert(session,scope,7),86_400_000);
   assert.equal(again.status,"executed");
-  assert.equal(count("sqlite_orders_test",scope),1);
+  assert.equal(count("orders_sqlite_test",scope),1);
 });
 
 test("SIGKILL after COMMIT before caller ACK replays saved bytes without new SQL",async()=>{
@@ -300,12 +300,12 @@ test("SIGKILL after COMMIT before caller ACK replays saved bytes without new SQL
   let saved;
   try {saved=await waitPhase(worker,"after-commit",errors);}
   finally {await killWorker(worker);}
-  assert.equal(count("sqlite_orders_test",scope),1);
+  assert.equal(count("orders_sqlite_test",scope),1);
   assert.equal(count("idempotencykit_records",scope),1);
   const replay=await new SqliteTransactionalExecutor(file).execute(
     scope,hash,async()=>{throw new Error("Killed process already committed.");},
     86_400_000);
   assert.equal(replay.status,"replayed");
   assert.equal(Buffer.from(replay.response.body).toString("utf8"),saved.response);
-  assert.equal(count("sqlite_orders_test",scope),1);
+  assert.equal(count("orders_sqlite_test",scope),1);
 });
