@@ -5,12 +5,14 @@ The solution includes scoped fingerprints, Standard-mode HTTP, a PostgreSQL tran
 - `IdempotencyKit.Core`: scoped identity, canonical JSON fingerprints, `IIdempotencyStore`, and provider-neutral `ITransactionalIdempotencyExecutor<TConnection,TTransaction>` + `TransactionalExecutionResult`.
 - `IdempotencyKit.Postgres`: PostgreSQL Standard-mode store plus atomic transaction executor, implementing the shared core interface.
 - `IdempotencyKit.SqlServer`: SQL Server 2022 Standard-mode store + `SqlServerTransactionalExecutor` using a transaction-owned per-key application lock and a shared `SqlConnection`/`SqlTransaction` callback.
+- `IdempotencyKit.EntityFrameworkCore.SqlServer`: `SqlServerEfCoreTransactionalExecutor<TContext>` validates exact `SqlConnection`, enlists `UseTransactionAsync`, and auto-saves pending changes before COMMIT.
+- `IdempotencyKit.AspNetCore.SqlServer`: `AddSqlServerTransactionalIdempotency` and `MapSqlServerTransactionalPost` for authenticated SQL Server transaction-aware JSON endpoints.
 - `IdempotencyKit.AspNetCore`: database-neutral HTTP input preparation and Standard-mode endpoint middleware.
 - `IdempotencyKit.AspNetCore.Postgres`: `MapTransactionalPost` and `AddPostgresTransactionalIdempotency` for authenticated PostgreSQL transactions.
 - `IdempotencyKit.EntityFrameworkCore.Postgres`: `PostgresEfCoreTransactionalExecutor<TContext>` verifies same connection and joins the Npgsql transaction.
 - `IdempotencyKit.Postgres.Tests`: real PostgreSQL integration tests.
 
-**Provider expansion:** SQL Server core is implemented; SQLite and SQL Server EF Core/HTTP are planned. See [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md) for the generic interface and the database-specific concurrency contract.
+**Provider expansion:** SQL Server core, EF Core 10 and transactional ASP.NET Core HTTP are implemented and tested; SQLite is planned. See [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md) for the generic interface and the database-specific concurrency contract.
 
 ## Build
 

@@ -5,11 +5,12 @@ This npm workspace includes an **implemented Standard-mode PostgreSQL store** pl
 - `@idempotencykit/core`: scoped hashes, deterministic JSON fingerprints, `IdempotencyStore`, and generic `TransactionalIdempotencyExecutor<TSession>` / canonical outcome types.
 - `@idempotencykit/postgres`: PostgreSQL Standard-mode store and `PostgresTransactionalExecutor` implementing the shared `TransactionalIdempotencyExecutor<PoolClient>`.
 - `@idempotencykit/sqlserver`: SQL Server 2022 Standard-mode store and `SqlServerTransactionalExecutor` using transaction-owned `sp_getapplock` and the same `mssql.Transaction` for domain writes.
+- `@idempotencykit/nestjs-sqlserver`: `SqlServerTransactionalHttpModule.forRoot` + `SqlServerTransactionalHttpService.handleExpress` on guarded NestJS Express routes (`rawBody: true`).
 - `@idempotencykit/nestjs`: Standard-mode module, decorator and interceptor.
 - `@idempotencykit/nestjs-postgres`: `PostgresTransactionalHttpModule.forRoot` and `PostgresTransactionalHttpService.handleExpress` for guarded transaction-aware Express routes; requires `rawBody: true`.
 - `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
 
-**Provider expansion:** SQL Server Standard + Transactional core is implemented; SQLite and SQL Server-specific NestJS HTTP are planned. The shared transactional outcome fixture is executed in both languages; see [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
+**Provider expansion:** SQL Server Standard + Transactional core and explicit NestJS 12 Express HTTP support are implemented and tested; SQLite is planned. The shared transactional outcome fixture is executed in both languages; see [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
 
 ## Build
 

@@ -21,7 +21,7 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core/HTTP, SQLite, universal annotations, publication and automated reconciliation remain future work.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are now implemented and tested against real SQL Server 2022, including full NestJS HTTP-process SIGKILL before/after COMMIT. SQLite, universal annotations, publication and automated reconciliation remain future work.
 
 ## Phase 1 — .NET Standard mode
 
@@ -80,7 +80,9 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Use transaction-owned, same-key `sp_getapplock` across both modes and both language implementations.
 - [x] Add real SQL Server 2022 CI for both ecosystems, preserving independent PostgreSQL CI.
 - [x] Add regression tests for owner fencing, mismatch, replay, rollback, uncertain outcomes, cleanup and 100-way concurrency.
-- [ ] Add SQL Server EF Core 10/ASP.NET Core and NestJS Express transactional HTTP adapters (next milestone).
+- [x] Add SQL Server EF Core 10 shared-transaction bridge, ASP.NET Core `MapSqlServerTransactionalPost`, and NestJS Express `SqlServerTransactionalHttpService.handleExpress`.
+- [x] Test all three SQL Server integration APIs against real SQL Server 2022, including Node HTTP-process SIGKILL before and after COMMIT.
+- [ ] Add equivalent ASP.NET Core HTTP process SIGKILL before/after COMMIT lab, Azure SQL failover verification, and publication hardening.
 - [ ] Run Azure SQL-specific durability/failover and full HTTP process-crash suites before supporting those production claims.
 
 ## Phase 4 — Hardening and observability

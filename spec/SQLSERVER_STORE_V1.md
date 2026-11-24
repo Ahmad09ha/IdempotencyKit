@@ -1,6 +1,6 @@
 # SQL Server 2022 / Azure SQL — Standard and Transactional core v1
 
-**Implementation:** `IdempotencyKit.SqlServer` (.NET 10) and `@idempotencykit/sqlserver` (Node.js/TypeScript). **Status: database-core implementation verified against SQL Server 2022 in .NET and Node.js CI.** See [verification evidence](../docs/VERIFICATION.md). This is not yet a published or production-certified package. SQL Server EF Core and ASP.NET Core/NestJS provider-specific HTTP integrations are a separate next milestone.
+**Implementation:** `IdempotencyKit.SqlServer` (.NET 10) and `@idempotencykit/sqlserver` (Node.js/TypeScript). **Status: database-core implementation verified against SQL Server 2022 in .NET and Node.js CI.** See [verification evidence](../docs/VERIFICATION.md). This is not yet a published or production-certified package. SQL Server EF Core 10 and ASP.NET Core/NestJS Express transactional HTTP integrations are now implemented in separate packages and verified against SQL Server 2022. See [SQL Server EF Core + HTTP v1](../docs/SQLSERVER_EFCORE_HTTP_V1.md).
 
 Unlike PostgreSQL, SQL Server does not use `INSERT ... ON CONFLICT` and has different transaction/locking behavior. This provider uses **transaction-owned, scoped-key application locks** with a durable unique key index. Business and idempotency writes still must use the **same physical SQL transaction**.
 
@@ -162,4 +162,4 @@ SQL Server 2022 `DATEADD` has 32-bit integer arguments for large durations. The 
 - **Tests:** use an isolated SQL Server 2022 CI database, not the production `master` database. The CI runner connects to disposable `master` only to avoid provisioning an extra test database; real applications should use their own app database.
 - **TLS:** `TrustServerCertificate=True` is allowed only in the disposable CI test connection; use verified server certificates in production.
 
-For the next layers (EF Core SQL Server and transactional ASP.NET Core/NestJS), see [Database Provider Roadmap](../docs/DATABASE_PROVIDER_ROADMAP.md). For current CI evidence, see [Verification Evidence](../docs/VERIFICATION.md).
+For EF Core SQL Server and transactional ASP.NET Core/NestJS Express route setup, see [SQL Server EF Core + HTTP v1](../docs/SQLSERVER_EFCORE_HTTP_V1.md). For provider expansion see [Database Provider Roadmap](../docs/DATABASE_PROVIDER_ROADMAP.md), and for test evidence see [Verification](../docs/VERIFICATION.md).
