@@ -107,6 +107,18 @@ test("actual filesystem permission denial fails closed; same-key replay and retr
       denied(file, "r+");
       denied(join(folder, "write-probe"), "wx");
       assertUnavailable(await request("new-operation"));
+      // SQLite can replay a validated completed row without a write on
+      // some read-only WAL configurations. Both safe outcomes are allowed.
+      const readOnlyReplay = await request("already-completed");
+      if (readOnlyReplay.status === 201) assert.deepEqual(readOnlyReplay, original);
+      else assertUnavailable(readOnlyReplay);
+      assert.equal(callbacks, 1);
+
+      // Deny reads as well. This is genuine unavailability, not read-only access.
+      for (const [path] of modes) chmodSync(path, 0o000);
+      chmodSync(folder, 0o000);
+      denied(file, "r");
+      assertUnavailable(await request("new-operation"));
       assertUnavailable(await request("already-completed"));
       assert.equal(callbacks, 1);
     } finally {

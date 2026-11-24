@@ -111,8 +111,29 @@ public sealed class SqliteFilesystemPermissionTests
 
                 using var failed = await SendAsync(client, "new-operation");
                 await AssertUnavailable(failed);
-                using var unavailableReplay = await SendAsync(client, "already-completed");
-                await AssertUnavailable(unavailableReplay);
+                // SQLite may still read a completed result from a read-only
+                // database. Either exact authorized replay or 503 is safe.
+                using var readOnlyReplay = await SendAsync(client, "already-completed");
+                if (readOnlyReplay.StatusCode == HttpStatusCode.Created)
+                {
+                    Assert.Equal(saved, await readOnlyReplay.Content.ReadAsByteArrayAsync());
+                    Assert.Equal(original.Headers.Location, readOnlyReplay.Headers.Location);
+                }
+                else await AssertUnavailable(readOnlyReplay);
+                Assert.Equal(1, callbacks);
+
+                // Now deny all access, not merely writes. A readable cached
+                // result must not be confused with unavailable storage.
+                foreach (var path in modes.Keys) File.SetUnixFileMode(path, UnixFileMode.None);
+                File.SetUnixFileMode(folder.FullName, UnixFileMode.None);
+                Assert.Throws<UnauthorizedAccessException>(() =>
+                {
+                    using var probe = File.Open(file, FileMode.Open, FileAccess.Read);
+                });
+                using var inaccessibleNew = await SendAsync(client, "new-operation");
+                await AssertUnavailable(inaccessibleNew);
+                using var inaccessibleReplay = await SendAsync(client, "already-completed");
+                await AssertUnavailable(inaccessibleReplay);
                 Assert.Equal(1, callbacks);
             }
             finally
