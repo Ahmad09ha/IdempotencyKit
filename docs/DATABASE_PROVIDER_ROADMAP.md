@@ -1,13 +1,13 @@
 # Database provider rollout plan
 
-**Planning baseline:** PostgreSQL Standard + Transactional mode, EF Core Npgsql, ASP.NET Core and NestJS Express HTTP integration are already implemented and tested. Shared provider-neutral transactional interfaces are now being added. **No SQL Server or SQLite production adapter is implemented yet.**
+**Planning baseline:** PostgreSQL Standard + Transactional mode, EF Core Npgsql, ASP.NET Core and NestJS Express HTTP integration are already implemented and tested. Shared provider-neutral transactional interfaces are now being added. **SQL Server Standard and Transactional core adapters are now implemented and tested against SQL Server 2022; SQL Server-specific EF Core/HTTP adapters and all SQLite adapters remain unimplemented.**
 
 ## Recommended sequence
 
 | Milestone | Scope | Exit criteria | Status |
 | --- | --- | --- | --- |
 | P0 — contracts | Generic .NET + TypeScript transactional interfaces, PostgreSQL compatibility, cross-language result fixture, architecture | Both existing PostgreSQL CI suites pass unchanged; new interface tests pass | Current PR |
-| P1 — SQL Server core | Durable Standard-mode claim/store + explicit SQL Server transaction executor (.NET + TypeScript) | Real SQL Server CI, 100 concurrent same-key, mismatch, replay, rollback/commit and lock-timeout tests | Planned |
+| P1 — SQL Server core | Durable Standard-mode claim/store + explicit SQL Server transaction executor (.NET + TypeScript) | Real SQL Server 2022 CI, 100 concurrent same-key, mismatch, replay, rollback and lock-timeout tests | **Implemented; CI verified** |
 | P2 — SQL Server HTTP/EF | ASP.NET Core/Postgres-specific mapping equivalent, EF Core SQL Server integration, NestJS Express service | Real authenticated HTTP request + replay, SQL Server EF shared transaction, process crash before/after COMMIT | Planned |
 | P3 — SQLite core | File-backed Standard-mode + transactional executor, explicit single-host deployment restrictions | Real **on-disk** SQLite tests for SQLITE_BUSY, WAL, multi-connection, replay, rollback and SIGKILL | Planned |
 | P4 — SQLite HTTP/EF | EF Core SQLite and explicit ASP.NET Core / NestJS provider adapters where driver supports safe async lifetime | Same-key retry with exact response bytes after process restart, documented bounded writer contention | Planned |
@@ -23,7 +23,7 @@ IdempotencyKit.AspNetCore                       # Standard-mode HTTP core
 IdempotencyKit.Postgres                         # implemented
 IdempotencyKit.EntityFrameworkCore.Postgres     # implemented
 IdempotencyKit.AspNetCore.Postgres               # implemented
-IdempotencyKit.SqlServer                        # planned
+IdempotencyKit.SqlServer                        # implemented core
 IdempotencyKit.EntityFrameworkCore.SqlServer    # planned
 IdempotencyKit.AspNetCore.SqlServer              # planned
 IdempotencyKit.Sqlite                           # planned
@@ -38,13 +38,13 @@ TypeScript:
 @idempotencykit/postgres              # implemented
 @idempotencykit/nestjs                # Standard-mode core
 @idempotencykit/nestjs-postgres       # implemented
-@idempotencykit/sqlserver             # planned
+@idempotencykit/sqlserver             # implemented core
 @idempotencykit/nestjs-sqlserver      # planned
 @idempotencykit/sqlite                # planned (driver selection first)
 @idempotencykit/nestjs-sqlite         # planned (depending on driver support)
 ~~~
 
-**Planned paths are not directories or published packages yet.** The existing source workspaces are not released to NuGet/npm.
+**Core SQL Server and PostgreSQL paths exist but remain unpublished source packages.** All other planned paths are not directories or published packages yet. The existing source workspaces are not released to NuGet/npm.
 
 ## P1 — SQL Server implementation checklist
 

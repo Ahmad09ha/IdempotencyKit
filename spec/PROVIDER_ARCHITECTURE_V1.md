@@ -1,6 +1,6 @@
 # Relational database provider architecture v1
 
-**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server, SQLite, MySQL and MariaDB adapters do not exist yet.** Their behavior below is proposed and must not be advertised as implemented or verified.
+**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server 2022 Standard and Transactional core adapters now exist and have real SQL Server CI coverage in both languages.** SQL Server EF Core and HTTP integrations, SQLite, MySQL and MariaDB remain future work. Azure SQL and cross-provider failover guarantees are not verified.
 
 ## Design objective
 
@@ -23,7 +23,7 @@ Provider-neutral contracts:
                  / TransactionalIdempotencyExecutor<TSession>
       |
 Provider implementation:
-  PostgreSQL (implemented) | SQL Server (planned) | SQLite (planned)
+  PostgreSQL (implemented) | SQL Server (core implemented) | SQLite (planned)
       |
 Provider-owned connection, transaction, schema, locking and cleanup
 ~~~
@@ -68,7 +68,7 @@ export interface TransactionalIdempotencyExecutor<TSession> {
 }
 ~~~
 
-`TSession` is supplied by the database adapter: PostgreSQL uses `pg.PoolClient`. The future SQL Server and SQLite adapters must choose appropriate session/transaction wrapper types and **cannot** silently start their own independent transaction in the callback. Provider-specific SQL syntax belongs in the business operation.
+`TSession` is supplied by the database adapter: PostgreSQL uses `pg.PoolClient`. SQL Server now uses `mssql.Transaction` and SQLite must later choose an appropriate session/transaction wrapper type and **cannot** silently start their own independent transaction in the callback. Provider-specific SQL syntax belongs in the business operation.
 
 The PostgreSQL adapter implements the interface. Its original exported result/status types remain available through type reexports from the core, rather than newly duplicated definitions.
 
@@ -130,7 +130,7 @@ Do **not** add automatic uncertain-record reclaims just to make SQLite or SQL Se
 
 No feature should be checked off for a provider until its real-database suite establishes the corresponding behavior.
 
-## SQL Server provider design (proposed)
+## SQL Server provider implementation (core implemented; HTTP/EF planned)
 
 - **Priority:** first after the core abstraction, for server-hosted .NET APIs and horizontally scaled NestJS services.
 - **Target for initial validation:** SQL Server 2022+/Azure SQL Database (final support matrix requires CI evidence).
@@ -189,4 +189,4 @@ Run each scenario against an **actual provider instance or durable local file**,
 - Existing .NET concrete `PostgresTransactionalExecutor.ExecuteAsync` and TypeScript `PostgresTransactionalExecutor.execute` remain unchanged in this milestone.
 - Refactor shared validation/orchestration only after the provider contract is tested; do not change existing Standard-mode semantics incidentally.
 
-**Current implementation milestone:** only the shared interfaces, shared fixture and PostgreSQL conformance are implemented. SQL Server and SQLite are the next adapter implementation milestones, not features shipped by this document.
+**Current implementation milestone:** PostgreSQL and SQL Server Standard/Transactional **core** providers implement the shared contracts with real database CI; SQL Server EF Core/HTTP, SQLite and further adapters remain future milestones. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
