@@ -1,0 +1,27 @@
+{
+  "name": "@idempotencykit/sqlserver",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@idempotencykit/core": "0.0.0",
+    "mssql": "^12.8.1"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0"
+  }
+}

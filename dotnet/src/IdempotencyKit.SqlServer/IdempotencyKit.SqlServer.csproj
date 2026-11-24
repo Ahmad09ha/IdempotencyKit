@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>SQL Server 2022+/Azure SQL Standard-mode store and transaction-aware idempotency adapter.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.8" />
+    <ProjectReference Include="../IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
+  </ItemGroup>
+</Project>
