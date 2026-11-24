@@ -3,6 +3,49 @@
 This file records **observed test results**, separately from planned guarantees. A test passing on a simulated failure or single CI host is **not** equivalent to production failure certification.
 
 
+
+## 2026-11-24 — SQL Server 2022 Standard and Transactional core (P1)
+
+**Verified source commit:** `b064965e5061246dc9ad4fac8e891f82b7c766a6` on `feature/sqlserver-core-v1`.  
+**SQL Server CI:** [run 45302246617](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45302246617) — both jobs passed against **actual SQL Server 2022 Developer containers**.
+
+| Ecosystem | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| .NET 10 / Microsoft.Data.SqlClient 6.1.8 | **11** | 0 | 0 |
+| Node.js 24 / mssql 12.x / Tedious | **10** | 0 | 0 |
+| **Total SQL Server provider tests** | **21** | **0** | **0** |
+
+**PostgreSQL regression CI:** [run 45302246723](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45302246723): .NET **40 passed**, TypeScript **38 passed**, no failures. Node also discovers the 10 SQL Server tests in the PostgreSQL-only CI job; it intentionally **skips those 10** because no SQL Server connection was configured there. All 10 are run in the dedicated SQL Server CI above.
+
+### SQL Server scenarios actually verified
+
+- SQL Server-specific DDL migration, binary-collated unique scoped key and safe response storage.
+- Standard mode: fresh claim, owner-token fencing, lease extension, completion and byte-for-byte replay.
+- Same key + different request fingerprint returns a mismatch without domain execution.
+- Expired Standard-mode processing claims become `Uncertain` and are not reclaimed.
+- Transactional mode: same `SqlConnection`/`SqlTransaction` or `mssql.Transaction` executes business SQL and stores the replay result before one COMMIT.
+- Standard and Transactional modes share the same SQL Server table and key-lock resource; completed Transactional results can be replayed through Standard mode.
+- Handler exception or unsafe response before COMMIT rolls back both the domain row and the provisional idempotency claim.
+- **100 concurrent same-key operations in each ecosystem** create exactly one committed business effect; duplicates return safe results.
+- Per-key app locks do not block separate-domain-key transaction execution. .NET no longer uses unnecessary serializable `HOLDLOCK` key-range reads on absent keys.
+- Explicit bounded app-lock wait returns `InProgress` for known same-key contention; unexpected database failures are not silently mapped to a replayable success.
+- Bounded cleanup deletes expired completed rows and retains uncertain records.
+- **.NET injected SQL Server connection termination while business SQL was uncommitted:** neither the order nor claim survived, and a same-key retry committed once.
+- **Stored response corruption:** syntactically valid but unsafe `Set-Cookie` header injected into the database is rejected at replay time by both language implementations.
+
+### Boundaries not yet verified
+
+- No SQL Server **live HTTP server SIGKILL after COMMIT but before reply**, nor SQL Server EF Core or ASP.NET Core/NestJS provider-specific HTTP adapters in this milestone.
+- No **Azure SQL** deployment-tier, failover, geo-replication or lost-COMMIT-ack validation. Local SQL Server 2022 CI is not certification for those environments.
+- No actual cross-language instance pair writing the **same database** in one test run (the .NET and Node GitHub Actions jobs each provision an independent disposable SQL Server container); both obey the same scoped hash format, schema and app-lock resource name.
+- No production throughput benchmark or audited security configuration; SQL Server application roles, TLS certificates, backup, retention and failover must be configured independently.
+- External payments, emails, queues and writes to independent databases are **not** made atomic by this single SQL Server transaction.
+- No SQL Server NuGet/npm package publication, and no SQLite adapter yet.
+
+**Conclusion:** this establishes the SQL Server **database-core** implementation against the shared v1 contract in real SQL Server 2022 CI. It does **not** establish framework-HTTP, EF Core or full failover/release guarantees.
+
+See [SQL Server Core v1](../spec/SQLSERVER_STORE_V1.md), [Provider Architecture](../spec/PROVIDER_ARCHITECTURE_V1.md) and [Database Provider Roadmap](DATABASE_PROVIDER_ROADMAP.md).
+
 ## 2026-11-24 — Provider-neutral transactional contracts (P0)
 
 **Verified source commit:** `f526406597e26e25de937fc38eccc62048d347c4` on `feature/provider-neutral-contracts-v1`.  

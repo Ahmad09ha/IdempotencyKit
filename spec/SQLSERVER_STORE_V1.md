@@ -1,6 +1,6 @@
 # SQL Server 2022 / Azure SQL — Standard and Transactional core v1
 
-**Implementation:** `IdempotencyKit.SqlServer` (.NET 10) and `@idempotencykit/sqlserver` (Node.js/TypeScript). **Status: early provider implementation; validation is tracked in `docs/VERIFICATION.md`.** This is not yet a published or production-certified package. SQL Server EF Core and ASP.NET Core/NestJS provider-specific HTTP integrations are a separate next milestone.
+**Implementation:** `IdempotencyKit.SqlServer` (.NET 10) and `@idempotencykit/sqlserver` (Node.js/TypeScript). **Status: database-core implementation verified against SQL Server 2022 in .NET and Node.js CI.** See [verification evidence](../docs/VERIFICATION.md). This is not yet a published or production-certified package. SQL Server EF Core and ASP.NET Core/NestJS provider-specific HTTP integrations are a separate next milestone.
 
 Unlike PostgreSQL, SQL Server does not use `INSERT ... ON CONFLICT` and has different transaction/locking behavior. This provider uses **transaction-owned, scoped-key application locks** with a durable unique key index. Business and idempotency writes still must use the **same physical SQL transaction**.
 
@@ -146,6 +146,10 @@ Under the hood, `sp_getapplock` is requested with `@LockMode='Exclusive'`, `@Loc
 SQL Server 2022 `DATEADD` has 32-bit integer arguments for large durations. The provider splits retention and lease durations into **seconds + milliseconds** so long retention windows do not overflow an int. Durations are bounded: lease ≤ 1 day, retained response ≤ 365 days.
 
 **Response rules:** only 2xx, valid UTF-8 JSON (up to 256 KiB), content types `application/json` / `application/problem+json` and safe response headers `Location` / `ETag` / `Content-Language`. Each provider validates before COMMIT. No arbitrary cookies, auth tokens or streaming responses are replayed.
+
+**Locking detail:** the transaction-owned `sp_getapplock` already serializes IdempotencyKit operations for the same scoped key. The .NET provider deliberately avoids `UPDLOCK, HOLDLOCK` when reading an absent key: SQL Server can acquire SERIALIZABLE index-gap range locks that stall inserts for *other* scoped keys. The unique primary key remains an independent safeguard. SQL Server domain-table reads may still block on unrelated uncommitted business rows if the application does unindexed scans under READ COMMITTED.
+
+**Replay corruption defense:** both stores revalidate persisted JSON, content type and safe header allowlist **on read**. A completed row manually modified to include `Set-Cookie` fails closed instead of replaying that header.
 
 ## Deployment and security limits
 
