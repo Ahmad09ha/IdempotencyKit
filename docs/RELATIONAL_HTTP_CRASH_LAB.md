@@ -16,3 +16,7 @@ This is a test-only harness for PostgreSQL 17 and SQL Server 2022. It does not c
 An application process kill is not a database-server crash, power loss, disk failure, ambiguous database COMMIT acknowledgement or failover test. The tests do not claim exactly-once effects outside the shared transaction. This is one slice of the release-hardening milestone; the existing SQLite preview work and cross-runtime relational workloads require separate verification.
 
 References: [ASP.NET Core 10 OnStarting](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httpresponse.onstarting?view=aspnetcore-10.0), [SQL Server isolation levels](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-transaction-isolation-level-transact-sql), [PostgreSQL 17 transaction isolation](https://www.postgresql.org/docs/17/transaction-iso.html).
+
+## Observed Kestrel crash results
+
+[PR #12](https://github.com/Ahmad09ha/IdempotencyKit/pull/12), head `475bc951ea5861f3518c4f55ba5684bb1619281f`, passed both before/after-COMMIT cases against PostgreSQL 17 and SQL Server 2022: **4 passed, 0 failed** ([CI run 45479753707](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45479753707)). All three provider regression workflows passed on the same head. Merged into main as `acafcfe5d3c719cebfa0b88bc2ab66606e1a0843`. This is application-process recovery evidence, not database failover certification.
