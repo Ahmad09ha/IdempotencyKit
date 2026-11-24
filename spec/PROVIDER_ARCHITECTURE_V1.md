@@ -1,6 +1,6 @@
 # Relational database provider architecture v1
 
-**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server 2022 Standard and Transactional core adapters now exist and have real SQL Server CI coverage in both languages.** SQL Server EF Core 10 and ASP.NET Core/NestJS Express transactional HTTP integrations are implemented with SQL Server 2022 CI. SQLite, MySQL and MariaDB remain future work. Azure SQL and cross-provider failover guarantees are not verified.
+**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server 2022 Standard and Transactional core adapters now exist and have real SQL Server CI coverage in both languages.** SQL Server EF Core 10 and ASP.NET Core/NestJS Express transactional HTTP integrations are implemented with SQL Server 2022 CI. **SQLite file-backed Standard/Transactional core is now implemented and real-database tested in .NET and Node 24.** SQLite EF Core/HTTP, MySQL and MariaDB remain future work. Azure SQL and cross-provider failover guarantees are not verified.
 
 ## Design objective
 
@@ -23,7 +23,7 @@ Provider-neutral contracts:
                  / TransactionalIdempotencyExecutor<TSession>
       |
 Provider implementation:
-  PostgreSQL (implemented) | SQL Server (core + EF Core + HTTP implemented) | SQLite (planned)
+  PostgreSQL (implemented) | SQL Server (core + EF Core + HTTP implemented) | SQLite (core implemented)
       |
 Provider-owned connection, transaction, schema, locking and cleanup
 ~~~
@@ -68,7 +68,7 @@ export interface TransactionalIdempotencyExecutor<TSession> {
 }
 ~~~
 
-`TSession` is supplied by the database adapter: PostgreSQL uses `pg.PoolClient`. SQL Server now uses `mssql.Transaction` and SQLite must later choose an appropriate session/transaction wrapper type and **cannot** silently start their own independent transaction in the callback. Provider-specific SQL syntax belongs in the business operation.
+`TSession` is supplied by the database adapter: PostgreSQL uses `pg.PoolClient`. SQL Server now uses `mssql.Transaction` and SQLite uses typed SqliteConnection/SqliteTransaction in .NET and a restricted SqliteTransactionSession using Node 24 built-in DatabaseSync, with process-local file queuing. Business callbacks must not use independent connections. Provider-specific SQL syntax belongs in the business operation.
 
 The PostgreSQL adapter implements the interface. Its original exported result/status types remain available through type reexports from the core, rather than newly duplicated definitions.
 
@@ -120,13 +120,13 @@ Do **not** add automatic uncertain-record reclaims just to make SQLite or SQL Se
 | Capability | PostgreSQL | SQL Server / Azure SQL | SQLite |
 | --- | --- | --- | --- |
 | Shared app deployment | Server database, verified in CI | Server database; SQL Server 2022 Docker CI verified | **Local file / one host** by default; not network WAL |
-| Atomic transactional callback | Implemented via Npgsql/pg | **Implemented** via SqlConnection/SqlTransaction and mssql.Transaction | Plan Microsoft.Data.Sqlite/SQLite-owned session |
+| Atomic transactional callback | Implemented via Npgsql/pg | **Implemented** via SqlConnection/SqlTransaction and mssql.Transaction | **Implemented** SqliteConnection/SqliteTransaction and guarded Node 24 session |
 | Claim serialization | Unique index, uncommitted INSERT | **Implemented** unique PK plus transaction-owned per-key sp_getapplock | `BEGIN IMMEDIATE` single writer, unique index |
 | Standard-mode leases | Implemented | **Implemented**, owner-fenced and fail-closed uncertain | Planned local-file semantics |
 | Queueing/timeout | PostgreSQL `lock_timeout` | **Implemented** bounded sp_getapplock same-key timeout | `busy_timeout` / `SQLITE_BUSY`; distinguish unrelated writer |
 | JSON replay storage | `bytea` + `jsonb` | `varbinary(max)` + `nvarchar(max)` | `BLOB` + `TEXT` |
 | EF Core | Npgsql tested | **EF Core 10 SQL Server tested** | Microsoft.EntityFrameworkCore.Sqlite planned |
-| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **File-backed** SQLite with multi-connection/process tests |
+| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **22 actual-file tests**, multi-process contention and SIGKILL before/after COMMIT |
 
 No feature should be checked off for a provider until its real-database suite establishes the corresponding behavior.
 
@@ -143,15 +143,16 @@ No feature should be checked off for a provider until its real-database suite es
 
 Official references: [SQL Server locking and key-range locks](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide), [`sp_getapplock`](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), [EF Core cross-context transactions](https://learn.microsoft.com/en-us/ef/core/saving/transactions).
 
-## SQLite provider design (proposed)
+## SQLite provider implementation (core verified; EF Core/HTTP planned)
 
-- **Priority:** second, for local or embedded deployment. Its default supported topology should be a local database file, **not** a shared network-file database backing multiple API replicas.
-- **Drivers:** `Microsoft.Data.Sqlite` and `Microsoft.EntityFrameworkCore.Sqlite` for .NET; evaluate a Node.js driver with valid transaction/session lifetime semantics. A synchronous SQLite transaction wrapper that accepts an asynchronous Promise callback is **not automatically safe**.
-- **Schema:** scoped hash `TEXT UNIQUE`, binary replay response `BLOB`, headers `TEXT`, UTC timestamps with a precisely defined format or integer epoch, owner token as text or binary. No PostgreSQL migration reuse.
-- **Concurrency:** with WAL, readers can coexist with a writer but **there can be only one writer**; `BEGIN IMMEDIATE` is a candidate to acquire write ownership before the claim read. Limit `busy_timeout` and fail closed when unrelated writers cause `SQLITE_BUSY`; it is **not** necessarily evidence that the same operation is already processing.
-- **Durability:** test `PRAGMA journal_mode=WAL`, `PRAGMA synchronous` policy, abrupt process termination, filesystem behavior, backups and cleanup. WAL's shared-memory design cannot safely be treated as a distributed network filesystem transaction manager.
-- **Verification:** use a **temporary file-backed database**, distinct connections/processes, crash injection, writer contention from different keys and cleanup; an in-memory SQLite test proves neither durable retry nor multi-process safety.
-- **Use-case exclusion:** do not claim multi-machine shared-file or multi-region idempotency with SQLite.
+- **Topology:** ONE host, one local SQLite database file; cooperating local processes are possible. Network WAL/shared-file multi-host/multi-region deployments are **not supported**.
+- **Drivers:** Microsoft.Data.Sqlite 10.0.4 in .NET; Node 24 built-in `node:sqlite` `DatabaseSync` (no additional native npm dependency). SQLite EF Core 10 and HTTP adapters remain planned for P4.
+- **Schema:** `spec/sql/sqlite/001_idempotencykit_records.sql` uses a unique binary-collated scoped hash, durable BLOB response, safe JSON headers, owner fencing and UTC epoch-millisecond timestamps.
+- **Transaction ownership:** SQLite WAL + synchronous FULL; `BEGIN IMMEDIATE` reserves the single FILE writer before inspecting the idempotency hash. The .NET callback uses supplied SqliteConnection / SqliteTransaction. Node uses restricted statement session; this package's same-path operations are serialized in-process even across async callbacks.
+- **Busy semantics:** an unrelated table/key may hold SQLite's only write lock. `SQLITE_BUSY` and `SQLITE_LOCKED` propagate as storage errors—not `InProgress`. Only an actual matching processing record proves `InProgress`.
+- **Durability/failure:** invalid responses or thrown business callbacks roll back both domain SQL and provisional claim; committed results replay across processes. Standard-mode expired claims become `Uncertain` and are never automatically reacquired.
+- **Verification:** 22 tests against real temporary files, 100 same-key contenders in each language, independent connections, unsafe response corruption, foreign-process writer lock and SIGKILL before and after COMMIT.
+- **Not certified:** network mounts, multi-machine deduplication, backup/restore fault injection, full .NET process-kill lab, SQLite EF Core/HTTP APIs, encryption tooling or NuGet/npm publication. See [SQLite Store v1](../docs/SQLITE_STORE_V1.md).
 
 Official references: [SQLite WAL](https://www.sqlite.org/wal.html), [SQLite transactions](https://www.sqlite.org/lang_transaction.html), [SQLite error/busy codes](https://www.sqlite.org/rescode.html).
 
@@ -189,4 +190,4 @@ Run each scenario against an **actual provider instance or durable local file**,
 - Existing .NET concrete `PostgresTransactionalExecutor.ExecuteAsync` and TypeScript `PostgresTransactionalExecutor.execute` remain unchanged in this milestone.
 - Refactor shared validation/orchestration only after the provider contract is tested; do not change existing Standard-mode semantics incidentally.
 
-**Current implementation milestone:** PostgreSQL and SQL Server Standard/Transactional **core** providers implement the shared contracts with real database CI; SQL Server EF Core/HTTP are implemented and verified against SQL Server 2022; SQLite and other providers remain future milestones. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
+**Current implementation milestone:** PostgreSQL and SQL Server Standard/Transactional **core** providers implement the shared contracts with real database CI; SQL Server EF Core/HTTP are implemented and verified against SQL Server 2022; SQLite core is now verified in .NET and Node 24; SQLite EF Core/HTTP and other providers remain future milestones. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
