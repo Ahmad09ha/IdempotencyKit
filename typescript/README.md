@@ -6,12 +6,13 @@ This npm workspace includes an **implemented Standard-mode PostgreSQL store** pl
 - `@idempotencykit/postgres`: PostgreSQL Standard-mode store and `PostgresTransactionalExecutor` implementing the shared `TransactionalIdempotencyExecutor<PoolClient>`.
 - `@idempotencykit/sqlserver`: SQL Server 2022 Standard-mode store and `SqlServerTransactionalExecutor` using transaction-owned `sp_getapplock` and the same `mssql.Transaction` for domain writes.
 - `@idempotencykit/sqlite`: file-backed SQLite Standard/Transactional core using built-in Node 24 `node:sqlite`; guarded callback session and process-local file queue.
+- `@idempotencykit/nestjs-sqlite`: `SqliteTransactionalHttpModule.forRoot` + `SqliteTransactionalHttpService.handleExpress` on authenticated NestJS Express routes (`rawBody: true`).
 - `@idempotencykit/nestjs-sqlserver`: `SqlServerTransactionalHttpModule.forRoot` + `SqlServerTransactionalHttpService.handleExpress` on guarded NestJS Express routes (`rawBody: true`).
 - `@idempotencykit/nestjs`: Standard-mode module, decorator and interceptor.
 - `@idempotencykit/nestjs-postgres`: `PostgresTransactionalHttpModule.forRoot` and `PostgresTransactionalHttpService.handleExpress` for guarded transaction-aware Express routes; requires `rawBody: true`.
 - `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
 
-**Provider expansion:** SQL Server Standard + Transactional core and explicit NestJS 12 Express HTTP support are implemented and tested; SQLite core is implemented and real file-backed tested; SQLite-specific NestJS HTTP is planned. The shared transactional outcome fixture is executed in both languages; see [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
+**Provider expansion:** SQL Server Standard + Transactional core and explicit NestJS 12 Express HTTP support are implemented and tested; SQLite core and explicit NestJS 12 Express HTTP are implemented and real on-disk tested, including full HTTP process SIGKILL. See [SQLite EF Core + HTTP](../docs/SQLITE_EFCORE_HTTP_V1.md). The shared transactional outcome fixture is executed in both languages; see [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
 
 ## Build
 

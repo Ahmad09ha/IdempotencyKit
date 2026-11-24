@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>SQLite Transactional-mode HTTP endpoints for ASP.NET Core.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../IdempotencyKit.AspNetCore/IdempotencyKit.AspNetCore.csproj" />
+    <ProjectReference Include="../IdempotencyKit.Sqlite/IdempotencyKit.Sqlite.csproj" />
+  </ItemGroup>
+</Project>

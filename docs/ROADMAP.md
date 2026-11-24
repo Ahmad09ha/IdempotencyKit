@@ -21,7 +21,7 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are now implemented and tested against real SQL Server 2022, including full NestJS HTTP-process SIGKILL before/after COMMIT. SQLite file-backed Standard/Transactional core is verified in .NET and Node 24. SQLite EF Core/HTTP, universal annotations, publication and automated reconciliation remain future work.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are now implemented and tested against real SQL Server 2022, including full NestJS HTTP-process SIGKILL before/after COMMIT. SQLite file-backed Standard/Transactional core, EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are verified in .NET and Node 24, including real NestJS HTTP process SIGKILL before/after COMMIT. Universal annotations, publication and automated reconciliation remain future work.
 
 ## Phase 1 — .NET Standard mode
 
@@ -93,8 +93,22 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Enforce fail-closed unrelated `SQLITE_BUSY` rather than false `InProgress`; never use in-memory tests to claim durable behavior.
 - [x] Validate owner fencing, mismatch, replay, uncertain leases, cleanup, atomic rollback and 100-way same-key concurrency on actual files in both ecosystems.
 - [x] Test cross-process writer contention and Node SIGKILL before/after COMMIT with same-key retries.
-- [ ] SQLite EF Core 10, authenticated ASP.NET Core/NestJS adapters (P4) and online backup/restore fault injection.
+- [x] SQLite EF Core 10, authenticated ASP.NET Core and NestJS Express transactional HTTP adapters (P4).
+- [ ] Complete online SQLite backup/restore, disk-full, file permissions and WAL checkpoint fault injection before production certification.
 - [ ] Release packaging, operations, incident reconciliation and security reviews.
+
+## SQLite EF Core 10 + transactional HTTP integration (P4)
+
+- [x] Add `SqliteEfCoreTransactionalExecutor<TContext>` with exact SqliteConnection identity validation and `UseTransactionAsync`, no ambient/magic enlistment.
+- [x] Verify EF Core generated keys and queued tracked changes, mismatch/replay, rollback after SaveChangesAsync, wrong-connection failure and concurrent same-key attempts.
+- [x] Add `AddSqliteTransactionalIdempotency` and `MapSqliteTransactionalPost` for explicitly authenticated ASP.NET Core JSON operations, with current permission checks before replay.
+- [x] Verify two ASP.NET Core HTTP hosts on the same file, 401/403, 400/422, known-record 409 and unrelated file-writer 503, rollback and 16 concurrent same-key calls.
+- [x] Add `@idempotencykit/nestjs-sqlite` for NestJS Express 12 / Node 24 rawBody transaction callbacks with guards and fresh authorization.
+- [x] Verify live NestJS SQLite HTTP server process `SIGKILL` before COMMIT (rollback/retry) and after COMMIT but before reply (durable replay).
+- [x] Keep original P3 SQLite real-file tests and PostgreSQL/SQL Server regression CI green.
+- [ ] Full .NET API-process SIGKILL and mixed-language same-file SQLite stress; online backup/restore, incident reconciliation and production audit.
+
+See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
 
 ## Phase 4 — Hardening and observability
 

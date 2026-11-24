@@ -5,6 +5,50 @@ This file records **observed test results**, separately from planned guarantees.
 
 
 
+## 2026-11-24 — SQLite EF Core 10 + authenticated transactional HTTP (P4)
+
+**Verified source commit:** `77cffa9fd2eb1323233e16111a187a45210e167c` on `feature/sqlite-efcore-http-v1`.
+
+- [SQLite real-file P4 CI run 45380771946](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45380771946): **24 .NET + 24 Node = 48 passed, 0 failed, 0 skipped**. Includes all 24 previously verified P3 database-core tests.
+- [PostgreSQL regression run 45380771971](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45380771971): **40 .NET passed** and **62 Node passed** (38 existing PostgreSQL/shared + 24 SQLite); the PostgreSQL-only Node workflow intentionally skips 19 SQL Server-specific tests, all executed separately.
+- [SQL Server 2022 regression run 45380772112](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45380772112): **22 .NET + 19 Node = 41 passed**, 0 failed/skipped.
+
+| SQLite real-file suite | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| .NET 10 — core + EF Core 10 + ASP.NET Core TestServer | **24** | 0 | 0 |
+| Node 24 — core + NestJS 12 Express + live HTTP SIGKILL | **24** | 0 | 0 |
+| **SQLite P4 total** | **48** | **0** | **0** |
+
+### P4 scenarios actually verified
+
+- **EF Core SQLite:** fresh `DbContext` bound to the exact `SqliteConnection` and enlisted via `UseTransactionAsync` in the **same SqliteTransaction** used by the idempotency record. A different connection to the **same file** is rejected before business code.
+- EF Core generated IDs/`SaveChangesAsync` and persisted JSON result commit as one transaction; a second context replays without invoking handler.
+- EF Core handler throws **after SaveChangesAsync**: domain row and provisional claim both roll back, allowing a same-key retry to execute once. Remaining tracked changes save before COMMIT.
+- **16 concurrent same-key EF Core calls** create exactly one committed SQLite order; any `SQLITE_BUSY` exception is recorded as a separate storage failure, not a fabricated idempotency result.
+- **ASP.NET Core:** authenticated SQLite-specific `MapSqliteTransactionalPost` in two independently constructed TestServer hosts using the **same local database file**; status/body/`Location` replay identically without second handler execution.
+- HTTP 401/403 authentication/permission and resource-level authorization **before replay**, 400 key/malformed JSON, 422 changed request, 409 with known committed processing row (`Retry-After`), and 409 uncertain state without business reexecution.
+- ASP.NET Core handler exception after a domain INSERT rolls back both writes and permits same-key retry; **16 concurrent HTTP calls** create one order.
+- **SQLite-specific file-wide contention test:** an unrelated SQL writer holds a transaction on another row; the ASP.NET Core transactional route returns **503** (storage unavailable), **not** spurious 409 or another business callback. After release, same-key retry commits once.
+- **NestJS 12 Express:** guarded route using `rawBody: true` and explicit `SqliteTransactionalHttpService.handleExpress`; byte-for-byte saved replay and safe headers, canonical JSON property reordering, trusted principal/tenant separation, fresh authorization, 400/403/409/422/503 mappings, 16 HTTP retries and business callback rollback.
+- **Node HTTP unrelated-process writer test:** another actual SQLite process holds a file-wide writer lock; request fails 503, not 409, and retry after SIGKILL completes once.
+- **Live NestJS Express API-process SIGKILL BEFORE COMMIT:** separate HTTP server is terminated while its callback holds an uncommitted domain INSERT and idempotency claim; both roll back. Same-key retry through the surviving HTTP host writes once.
+- **Live NestJS Express API-process SIGKILL AFTER COMMIT but BEFORE HTTP reply:** separate server is killed after SQLite acknowledges COMMIT with response intentionally withheld; retry through the surviving host replays the saved JSON **without another domain INSERT or callback**.
+- All existing P3 owner fencing, 100-way database concurrency, schema parity, uncertain lease, corrupt replay and process-crash tests remain green in this suite.
+
+### Explicit boundaries (not certified)
+
+- SQLite **local on-disk file and single-host topology only**; WAL and its sidecar files must not be shared across machines via NFS/SMB. This is not a distributed idempotency service.
+- No standalone **.NET API-process** SIGKILL test at the HTTP layer; .NET TestServer uses the real SQLite database but lives inside the test process. The actual before/after COMMIT HTTP process-kill lab here is **Node/NestJS** only.
+- SQLite .NET and Node suites each use their **own temporary file**; simultaneous mixed-language traffic from both runtimes against **one shared file** is a future interoperability stress test.
+- No runtime Fastify adapter; no automatically transactional `[Idempotent]` or `@Idempotent()` decorator—explicit transactional routes must not be wrapped in Standard-mode idempotency middleware.
+- No production online backup/restore validation, checkpoint/disk-full or filesystem permission fault injection, encryption/security/performance certification, NuGet/npm package publication or auto reconciliation.
+- Real JWT/cookie validation and tenant authorization belong to the consuming app; the CI `X-Test-User` guard is **test-only**.
+- No single SQLite transaction can roll back emails, HTTP calls, payments, messages, another file or a remote database; retry ambiguous COMMIT outcomes with the **same key against the same authoritative file**.
+
+**Conclusion:** SQLite P4 delivers verified **file-backed core + EF Core + explicit ASP.NET Core/NestJS transactional HTTP** in both ecosystems. The local single-writer support and release-hardening boundaries remain explicit.
+
+See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md), [SQLite Store v1](SQLITE_STORE_V1.md) and [Database Provider Rollout](DATABASE_PROVIDER_ROADMAP.md).
+
 ## 2026-11-24 — SQLite on-disk Standard + Transactional core (P3)
 
 **Verified implementation commit:** `f90d44f4dac2a482cc0ddfd4c0628b06d8f629c2` on `feature/sqlite-core-v1`.

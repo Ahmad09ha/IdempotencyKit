@@ -1,6 +1,6 @@
 # Relational database provider architecture v1
 
-**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server 2022 Standard and Transactional core adapters now exist and have real SQL Server CI coverage in both languages.** SQL Server EF Core 10 and ASP.NET Core/NestJS Express transactional HTTP integrations are implemented with SQL Server 2022 CI. **SQLite file-backed Standard/Transactional core is now implemented and real-database tested in .NET and Node 24.** SQLite EF Core/HTTP, MySQL and MariaDB remain future work. Azure SQL and cross-provider failover guarantees are not verified.
+**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server 2022 Standard and Transactional core adapters now exist and have real SQL Server CI coverage in both languages.** SQL Server EF Core 10 and ASP.NET Core/NestJS Express transactional HTTP integrations are implemented with SQL Server 2022 CI. **SQLite file-backed Standard/Transactional core is now implemented and real-database tested in .NET and Node 24.** SQLite EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are also implemented and verified against on-disk SQLite files. MySQL and MariaDB remain future work. Azure SQL and cross-provider failover guarantees are not verified.
 
 ## Design objective
 
@@ -23,7 +23,7 @@ Provider-neutral contracts:
                  / TransactionalIdempotencyExecutor<TSession>
       |
 Provider implementation:
-  PostgreSQL (implemented) | SQL Server (core + EF Core + HTTP implemented) | SQLite (core implemented)
+  PostgreSQL (implemented) | SQL Server (core + EF Core + HTTP implemented) | SQLite (core + EF Core + HTTP implemented)
       |
 Provider-owned connection, transaction, schema, locking and cleanup
 ~~~
@@ -122,11 +122,11 @@ Do **not** add automatic uncertain-record reclaims just to make SQLite or SQL Se
 | Shared app deployment | Server database, verified in CI | Server database; SQL Server 2022 Docker CI verified | **Local file / one host** by default; not network WAL |
 | Atomic transactional callback | Implemented via Npgsql/pg | **Implemented** via SqlConnection/SqlTransaction and mssql.Transaction | **Implemented** SqliteConnection/SqliteTransaction and guarded Node 24 session |
 | Claim serialization | Unique index, uncommitted INSERT | **Implemented** unique PK plus transaction-owned per-key sp_getapplock | `BEGIN IMMEDIATE` single writer, unique index |
-| Standard-mode leases | Implemented | **Implemented**, owner-fenced and fail-closed uncertain | Planned local-file semantics |
+| Standard-mode leases | Implemented | **Implemented**, owner-fenced and fail-closed uncertain | **Implemented**, owner fencing and fail-closed uncertain expiry |
 | Queueing/timeout | PostgreSQL `lock_timeout` | **Implemented** bounded sp_getapplock same-key timeout | `busy_timeout` / `SQLITE_BUSY`; distinguish unrelated writer |
 | JSON replay storage | `bytea` + `jsonb` | `varbinary(max)` + `nvarchar(max)` | `BLOB` + `TEXT` |
-| EF Core | Npgsql tested | **EF Core 10 SQL Server tested** | Microsoft.EntityFrameworkCore.Sqlite planned |
-| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **22 actual-file tests**, multi-process contention and SIGKILL before/after COMMIT |
+| EF Core | Npgsql tested | **EF Core 10 SQL Server tested** | **EF Core 10 SQLite on-disk tested** |
+| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **48 real-file P4 tests**: core, EF Core, authenticated HTTP, process SIGKILL |
 
 No feature should be checked off for a provider until its real-database suite establishes the corresponding behavior.
 
@@ -143,16 +143,16 @@ No feature should be checked off for a provider until its real-database suite es
 
 Official references: [SQL Server locking and key-range locks](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide), [`sp_getapplock`](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), [EF Core cross-context transactions](https://learn.microsoft.com/en-us/ef/core/saving/transactions).
 
-## SQLite provider implementation (core verified; EF Core/HTTP planned)
+## SQLite provider implementation (core, EF Core and explicit HTTP verified)
 
 - **Topology:** ONE host, one local SQLite database file; cooperating local processes are possible. Network WAL/shared-file multi-host/multi-region deployments are **not supported**.
-- **Drivers:** Microsoft.Data.Sqlite 10.0.4 in .NET; Node 24 built-in `node:sqlite` `DatabaseSync` (no additional native npm dependency). SQLite EF Core 10 and HTTP adapters remain planned for P4.
+- **Drivers:** Microsoft.Data.Sqlite 10.0.4 in .NET; Node 24 built-in `node:sqlite` `DatabaseSync` (no additional native npm dependency). SQLite EF Core 10 and authenticated ASP.NET Core/NestJS Express HTTP are now implemented and tested in P4.
 - **Schema:** `spec/sql/sqlite/001_idempotencykit_records.sql` uses a unique binary-collated scoped hash, durable BLOB response, safe JSON headers, owner fencing and UTC epoch-millisecond timestamps.
 - **Transaction ownership:** SQLite WAL + synchronous FULL; `BEGIN IMMEDIATE` reserves the single FILE writer before inspecting the idempotency hash. The .NET callback uses supplied SqliteConnection / SqliteTransaction. Node uses restricted statement session; this package's same-path operations are serialized in-process even across async callbacks.
 - **Busy semantics:** an unrelated table/key may hold SQLite's only write lock. `SQLITE_BUSY` and `SQLITE_LOCKED` propagate as storage errors—not `InProgress`. Only an actual matching processing record proves `InProgress`.
 - **Durability/failure:** invalid responses or thrown business callbacks roll back both domain SQL and provisional claim; committed results replay across processes. Standard-mode expired claims become `Uncertain` and are never automatically reacquired.
 - **Verification:** 24 tests against real temporary files, 100 same-key contenders in each language, independent connections, unsafe response corruption, foreign-process writer lock and SIGKILL before and after COMMIT.
-- **Not certified:** network mounts, multi-machine deduplication, backup/restore fault injection, full .NET process-kill lab, SQLite EF Core/HTTP APIs, encryption tooling or NuGet/npm publication. See [SQLite Store v1](../docs/SQLITE_STORE_V1.md).
+- **Not certified:** network mounts, multi-machine deduplication, backup/restore fault injection, full .NET process-kill lab, SQLite cross-language same-file stress, full .NET API-process SIGKILL, encryption tooling or NuGet/npm publication. See [SQLite Store v1](../docs/SQLITE_STORE_V1.md).
 
 Official references: [SQLite WAL](https://www.sqlite.org/wal.html), [SQLite transactions](https://www.sqlite.org/lang_transaction.html), [SQLite error/busy codes](https://www.sqlite.org/rescode.html).
 
@@ -190,4 +190,4 @@ Run each scenario against an **actual provider instance or durable local file**,
 - Existing .NET concrete `PostgresTransactionalExecutor.ExecuteAsync` and TypeScript `PostgresTransactionalExecutor.execute` remain unchanged in this milestone.
 - Refactor shared validation/orchestration only after the provider contract is tested; do not change existing Standard-mode semantics incidentally.
 
-**Current implementation milestone:** PostgreSQL and SQL Server Standard/Transactional **core** providers implement the shared contracts with real database CI; SQL Server EF Core/HTTP are implemented and verified against SQL Server 2022; SQLite core is now verified in .NET and Node 24; SQLite EF Core/HTTP and other providers remain future milestones. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
+**Current implementation milestone:** PostgreSQL and SQL Server Standard/Transactional **core** providers implement the shared contracts with real database CI; SQL Server EF Core/HTTP are implemented and verified against SQL Server 2022; SQLite core and EF Core/HTTP are verified in .NET and Node 24; other providers and production release hardening remain future milestones. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
