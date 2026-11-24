@@ -256,7 +256,7 @@ See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **SQL Serv
 - **.NET 10:** `IdempotencyKit.Sqlite` provides `SqliteIdempotencyStore` and `SqliteTransactionalExecutor` using the supplied `SqliteConnection` + `SqliteTransaction` for the same-database SQL and replay record COMMIT.
 - **Node 24:** `@idempotencykit/sqlite` uses built-in `node:sqlite`, a restricted statement session and an in-process per-file queue for async callbacks.
 - **Concurrency:** `BEGIN IMMEDIATE` reserves SQLite's **single writer for the whole file**. An unrelated `SQLITE_BUSY` or `SQLITE_LOCKED` is a **storage error**, not evidence of a matching in-progress key.
-- **Verification:** **22 passing real file-backed tests** (9 .NET + 13 Node), 100 concurrent same-key requests, conservative uncertain leases, replay, cleanup, rollback, and Node SIGKILL before and after COMMIT. [SQLite CI](https://github.com/Ahmad09ha/IdempotencyKit/actions/workflows/sqlite-ci.yml).
+- **Verification:** **24 passing real file-backed tests** (10 .NET + 14 Node), 100 concurrent same-key requests, conservative uncertain leases, replay, cleanup, rollback, and Node SIGKILL before and after COMMIT. [SQLite CI](https://github.com/Ahmad09ha/IdempotencyKit/actions/workflows/sqlite-ci.yml).
 - **Limits:** one local host, local file only; no network-mounted WAL, multi-host distributed claims, SQLite EF Core/HTTP yet, or atomic external payment/email effects.
 
 See [SQLite Store v1](docs/SQLITE_STORE_V1.md) for working APIs, migrations, backups and safe retry guidance.

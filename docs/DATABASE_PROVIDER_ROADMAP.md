@@ -9,7 +9,7 @@
 | P0 — contracts | Generic .NET + TypeScript transactional interfaces, PostgreSQL compatibility, cross-language result fixture, architecture | Both existing PostgreSQL CI suites pass unchanged; new interface tests pass | Implemented |
 | P1 — SQL Server core | Durable Standard-mode claim/store + explicit SQL Server transaction executor (.NET + TypeScript) | Real SQL Server 2022 CI, 100 concurrent same-key, mismatch, replay, rollback and lock-timeout tests | **Implemented; CI verified** |
 | P2 — SQL Server HTTP/EF | Explicit ASP.NET Core endpoint mapping, EF Core SQL Server integration, NestJS Express service | Real authenticated HTTP request/replay, SQL Server EF shared transaction, Node HTTP process SIGKILL before/after COMMIT | **Implemented; CI verified** |
-| P3 — SQLite core | Local file-backed Standard + Transactional executors in .NET/Node | **22 on-disk tests**: WAL/FULL, busy, multi-connection replay, 100 contenders, rollback and SIGKILL | **Implemented; CI verified** |
+| P3 — SQLite core | Local file-backed Standard + Transactional executors in .NET/Node | **24 on-disk tests**: WAL/FULL, busy, multi-connection replay, 100 contenders, rollback and SIGKILL | **Implemented; CI verified** |
 | P4 — SQLite HTTP/EF | EF Core SQLite and explicit ASP.NET Core / NestJS provider adapters where driver supports safe async lifetime | Same-key retry with exact response bytes after process restart, documented bounded writer contention | Planned |
 | P5 — more engines | MySQL/MariaDB research, optional Redis Standard mode | Separate database-specific guarantees and verified CI evidence | Deferred |
 
