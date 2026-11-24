@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { SQLITE_SCHEMA_V1 } from "../packages/sqlite/dist/sqlite-schema.js";
 import { computeScopeKey, computeRequestFingerprint } from "@idempotencykit/core";
 import {
   initializeSqliteDatabase, SqliteIdempotencyStore,
@@ -86,6 +87,8 @@ test("Node SQLite schema matches the published source migration", () => {
   assert.match(sql,/CREATE TABLE IF NOT EXISTS idempotencykit_records/);
   assert.match(sql,/CREATE INDEX IF NOT EXISTS ix_idempotencykit_expiry/);
   assert.match(sql,/state IN \('processing','completed','uncertain'\)/);
+  const normalize = input => input.replace(/^--.*$/gm, "").replace(/\s+/g, " ").trim();
+  assert.equal(normalize(sql), normalize(SQLITE_SCHEMA_V1));
 });
 
 test("Standard mode claims owners, extends lease, rejects mismatches, replays bytes after reopen", async () => {
@@ -211,15 +214,17 @@ test("corrupt stored completed response must fail closed rather than leak an uns
   await assert.rejects(()=>store.tryClaim(scope,hash,60_000));
 });
 
-test("transaction session rejects manual COMMIT and remains atomic", async () => {
+test("transaction session rejects manual COMMIT with or without SQL comments", async () => {
   const scope=key(), hash=fingerprint(13);
-  await assert.rejects(()=>executor.execute(scope,hash,async session => {
-    insert(session,scope,13);
-    session.prepare("COMMIT");
-    return response(1,13);
-  },86_400_000));
-  assert.equal(count("orders_sqlite_test",scope),0);
-  assert.equal(count("idempotencykit_records",scope),0);
+  for(const sql of ["COMMIT","/* leading */ COMMIT","-- leading comment\nCOMMIT","; COMMIT"]) {
+    await assert.rejects(()=>executor.execute(scope,hash,async session => {
+      insert(session,scope,13);
+      session.prepare(sql);
+      return response(1,13);
+    },86_400_000));
+    assert.equal(count("orders_sqlite_test",scope),0);
+    assert.equal(count("idempotencykit_records",scope),0);
+  }
 });
 
 function forkWorker(mode,scope,hash) {

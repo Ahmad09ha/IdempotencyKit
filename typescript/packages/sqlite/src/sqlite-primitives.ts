@@ -89,6 +89,7 @@ export function makeSession(db: DatabaseSync): SqliteTransactionSession {
   return Object.freeze({
     prepare(sql: string): StatementSync {
       if (typeof sql !== "string" || !sql.trim() ||
+          /^\s*(?:--|\/\*|;)/.test(sql) ||
           /^\s*(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE|ATTACH|DETACH|PRAGMA|VACUUM)\b/i
             .test(sql))
         throw new Error("Transaction/connection control statements are forbidden.");
