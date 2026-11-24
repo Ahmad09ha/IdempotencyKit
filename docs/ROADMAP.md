@@ -45,7 +45,8 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [ ] Add and verify a separate Fastify adapter before promising Fastify support.
 - [x] Exercise shared fingerprint and transactional outcome fixtures in both ecosystems.
 - [x] Add NestJS Express HTTP tests for replay, conflicts, scope isolation and unknown outcomes.
-- [ ] Add process-crash, multi-replica and wire-response serializer parity tests.
+- [x] Verify explicit Transactional-mode real HTTP process-crash and shared-database cross-framework replay in both directions (PostgreSQL/SQL Server).
+- [ ] Expand Standard-mode multi-replica/fault and full wire-response parity coverage.
 
 **Exit:** identical observable behavior for supported HTTP routes on both platforms.
 
@@ -58,7 +59,7 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Simulate database-backend termination before COMMIT and verify both rows roll back; verify completed retry replay.
 - [x] Demonstrate real forked Node worker-process SIGKILL before and after COMMIT, validating database rollback and replay.
 - [x] Demonstrate live NestJS Express HTTP server SIGKILL before and after COMMIT, with a same-key retry through a surviving test host.
-- [ ] Build equivalent full ASP.NET Core server-process SIGKILL/restart scenarios.
+- [x] Verify full ASP.NET Core Kestrel process SIGKILL before/after COMMIT with same-key recovery against PostgreSQL and SQL Server.
 
 **Exit:** one committed business effect and replayable result in verified failure windows.
 
@@ -83,8 +84,9 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Add regression tests for owner fencing, mismatch, replay, rollback, uncertain outcomes, cleanup and 100-way concurrency.
 - [x] Add SQL Server EF Core 10 shared-transaction bridge, ASP.NET Core `MapSqlServerTransactionalPost`, and NestJS Express `SqlServerTransactionalHttpService.handleExpress`.
 - [x] Test all three SQL Server integration APIs against real SQL Server 2022, including Node HTTP-process SIGKILL before and after COMMIT.
-- [ ] Add equivalent ASP.NET Core HTTP process SIGKILL before/after COMMIT lab, Azure SQL failover verification, and publication hardening.
-- [ ] Run Azure SQL-specific durability/failover and full HTTP process-crash suites before supporting those production claims.
+- [x] Verify equivalent ASP.NET Core HTTP process SIGKILL before/after COMMIT and mixed .NET/Node HTTP replay/contestation against SQL Server 2022.
+- [ ] Complete Azure SQL failover verification and publication hardening.
+- [ ] Run Azure SQL-specific durability/failover suites before supporting those production claims.
 
 ## SQLite core implementation (P3)
 
@@ -96,7 +98,8 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Test cross-process writer contention and Node SIGKILL before/after COMMIT with same-key retries.
 - [x] SQLite EF Core 10, authenticated ASP.NET Core and NestJS Express transactional HTTP adapters (P4).
 - [x] Verify SQLite online backup/restore, pinned-reader checkpoint behavior and rollback under a constrained SQLite page cap.
-- [ ] Verify actual host disk exhaustion, file permissions and production storage under failure.
+- [x] Verify actual Linux filesystem permission denial and safe recovery in both SQLite HTTP adapters.
+- [ ] Verify physical host disk exhaustion and production storage under failure.
 - [ ] Release packaging, operations, incident reconciliation and security reviews.
 
 ## SQLite EF Core 10 + transactional HTTP integration (P4)

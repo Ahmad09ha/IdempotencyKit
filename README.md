@@ -142,7 +142,7 @@ Key components are: an atomic idempotency store, scoped key resolver, determinis
 
 ## Failure-driven development
 
-The acceptance suite should eventually prove:
+The acceptance suite targets the following properties. See the dated evidence for exact test scenarios and remaining limits:
 
 - 100 simultaneous requests with the same key cannot produce multiple **transactional** business effects.
 - Same key and different payload returns `422` without executing business logic.
@@ -270,7 +270,7 @@ See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **PostgreS
 - **Safety:** completed-result replay, mismatch rejection, Standard-mode owner/lease fencing, uncertain state, bounded JSON responses and one-transaction SQL business writes.
 - **Tests:** real SQL Server 2022 CI for both languages, including 100 concurrent same-key transaction attempts. See [SQL Server Store v1](spec/SQLSERVER_STORE_V1.md) and [CI results](https://github.com/Ahmad09ha/IdempotencyKit/actions/workflows/sqlserver-ci.yml).
 
-**Now included in separate provider-specific packages:** `SqlServerEfCoreTransactionalExecutor<TContext>`, ASP.NET Core `MapSqlServerTransactionalPost`, NestJS `SqlServerTransactionalHttpModule` / `SqlServerTransactionalHttpService.handleExpress`. See [SQL Server EF Core + HTTP v1](docs/SQLSERVER_EFCORE_HTTP_V1.md). **Still excluded:** Azure SQL failover certification, ASP.NET full process-SIGKILL lab, stable package publication and external-effect exactly-once claims. PostgreSQL integrations are unaffected.
+**Now included in separate provider-specific packages:** `SqlServerEfCoreTransactionalExecutor<TContext>`, ASP.NET Core `MapSqlServerTransactionalPost`, NestJS `SqlServerTransactionalHttpModule` / `SqlServerTransactionalHttpService.handleExpress`. See [SQL Server EF Core + HTTP v1](docs/SQLSERVER_EFCORE_HTTP_V1.md). **Verified on real SQL Server 2022:** full ASP.NET Core and NestJS process-crash recovery, and shared-database mixed-framework HTTP replay/contestation. **Still excluded:** Azure SQL failover certification, stable package publication and external-effect exactly-once claims. PostgreSQL integrations are unaffected.
 
 ## Implemented: PostgreSQL Transactional Mode v1
 
@@ -319,4 +319,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** release hardening and distribution: validate a full .NET API-process crash harness, mixed-language same-file SQLite operation, backup/restore and disk-full fault injection, security/performance baselines, and publishable NuGet/npm packages. See [Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md). Full .NET HTTP process-crash validation, error parity, reconciliation and package publication remain separate hardening goals.
+**Release hardening status:** [Kestrel crash recovery](docs/RELATIONAL_HTTP_CRASH_LAB.md) and [mixed-runtime relational HTTP](docs/RELATIONAL_MIXED_RUNTIME_LAB.md) passed on PostgreSQL and SQL Server. SQLite's local-file process crashes, mixed-runtime, online backup/checkpoint, bounded page-cap SQLITE_FULL and [Linux permission faults](docs/SQLITE_FILESYSTEM_FAULT_LAB.md) have dedicated evidence. The integrated preview still requires exact-head regression and package checks. **Next:** security/performance review, remaining infrastructure fault/failover tests, and approved publication. Physical host disk exhaustion, broader production topologies, automatic reconciliation, license selection and stable release are not certified or completed.

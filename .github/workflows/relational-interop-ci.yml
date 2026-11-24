@@ -1,0 +1,86 @@
+name: Relational Mixed Runtime HTTP CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    name: ASP.NET + NestJS on one PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: idk_interop
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d idk_interop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      IDEMPOTENCYKIT_INTEROP_PROVIDER: postgres
+      IDEMPOTENCYKIT_INTEROP_POSTGRES_URL: postgresql://postgres:testpass@127.0.0.1:5432/idk_interop
+      IDEMPOTENCYKIT_INTEROP_DOTNET_DB: Host=127.0.0.1;Port=5432;Database=idk_interop;Username=postgres;Password=testpass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the actual Kestrel test host
+        run: dotnet build dotnet/tests/fixtures/IdempotencyKit.Relational.CrashHost -c Release
+      - name: Build Node workspace
+        working-directory: typescript
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run build
+      - name: Mixed-runtime HTTP tests against PostgreSQL
+        working-directory: typescript
+        run: node --test tests/relational-interop/shared-http.test.mjs
+
+  sqlserver:
+    name: ASP.NET + NestJS on one SQL Server 2022
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SqlServerTest_Strong!2026"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+    env:
+      IDEMPOTENCYKIT_INTEROP_PROVIDER: sqlserver
+      IDEMPOTENCYKIT_INTEROP_SQLSERVER_PASSWORD: "SqlServerTest_Strong!2026"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the actual Kestrel test host
+        run: dotnet build dotnet/tests/fixtures/IdempotencyKit.Relational.CrashHost -c Release
+      - name: Build Node workspace
+        working-directory: typescript
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run build
+      - name: Mixed-runtime HTTP tests against SQL Server
+        working-directory: typescript
+        run: node --test tests/relational-interop/shared-http.test.mjs

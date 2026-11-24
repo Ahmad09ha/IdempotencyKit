@@ -5,9 +5,25 @@ This file records **observed test results**, separately from planned guarantees.
 
 
 
+## 2026-11-24 — Relational HTTP crash, mixed-runtime and SQLite permission hardening
+
+These runs are independently verified source-head evidence, not a claim of production certification. The merged preview combination must pass its own exact-head CI.
+
+| Evidence | Verified result |
+| --- | --- |
+| [PR #12 — relational HTTP crash recovery](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45479753707) | **4/4**: 2 PostgreSQL + 2 SQL Server full Kestrel hard kills before/after COMMIT; merged as `acafcfe5`. |
+| [PR #13 — shared relational HTTP](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45481033033) | **10/10**: 5 PostgreSQL + 5 SQL Server, including cross-framework replay in both directions, lock contention, 24 simultaneous mixed requests and cross-runtime recovery after process kill; merged as `572de62`. |
+| [PR #14 — corrected SQLite permission suite](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45481536099) | **25 .NET + 25 Node = 50 passed, 0 failed/skipped** on `fed76756074b70fb1b445214e57b831f53fcb00c`; each runtime includes one new real OS permission test. |
+| [Original PR #11 — SQLite](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45383666479) | **29 .NET + 28 Node + 3 mixed-file tests = 60 passed**, zero failed/skipped on `07ec6a5`. |
+| [Original PR #11 — no-publish preview](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45383667689) | 11 NuGet artifacts, 8 npm tarballs, isolated consumer install/runtime tests and both real HTTP Orders samples passed. |
+
+- SQLite read-only permissions deny new writes (503). An already committed result can still be read and returned byte-identically if the driver supports that access; .NET may fail closed while Node may replay. The first permission test incorrectly demanded 503 for every replay; the corrected test separately denies all reads, where both runtimes return 503. No callback runs for unavailable storage; restoring permissions preserves the original result and permits same-key recovery.
+- See [Relational HTTP crash lab](RELATIONAL_HTTP_CRASH_LAB.md), [Relational mixed-runtime lab](RELATIONAL_MIXED_RUNTIME_LAB.md), [SQLite filesystem fault lab](SQLITE_FILESYSTEM_FAULT_LAB.md).
+- Remaining: physical host disk exhaustion / power loss, production filesystem and network/database failover, broader load/security review and operator-approved reconciliation; no external exactly-once claims, registry release or license decision.
+
 ## 2026-11-24 — Preview readiness and additional SQLite fault coverage
 
-Local verification of the release-candidate changes, continuing from main `f2eae3c`. GitHub Actions should independently certify the exact PR head before merge.
+Historical local verification of the preview changes, continuing from main `f2eae3c`. The subsequent original PR #11 CI results and newer hardening evidence are recorded above.
 
 | Run | Result |
 | --- | --- |
@@ -25,7 +41,7 @@ Local verification of the release-candidate changes, continuing from main `f2eae
 - **Telemetry**: new HTTP observer/meter verifies bounded outcome identifiers and does not add the caller, key or body to observations. See [Operations](OPERATIONS.md).
 - **Dependency servicing**: updated the .NET SQLite libraries to 10.0.15; Linux x64 resolved `SQLitePCLRaw.lib.e_sqlite3` 2.1.13 (SQLite runtime 3.53.3). NuGet's transitive audit no longer reported [GHSA-2m69-gcr7-jv3q](https://github.com/advisories/GHSA-2m69-gcr7-jv3q) for the SQLite suite closure.
 
-**Still open:** current-head SQL Server real database regression is gated on its dedicated CI or an available SQL Server instance. Live ASP.NET process-kill coverage for PostgreSQL and SQL Server, Azure SQL failover, full multi-replica pressure, production permission and physical disk fault tests, external authentication and performance/security audits are not certified. Fastify, Redis, MySQL/MariaDB, automatic uncertain-state reconciliation and actual registry publication are not claimed.
+**At the time of the local run:** SQL Server regression and relational ASP.NET process-kill tests were still open; the subsequent CI results above supersede those gaps. Azure SQL failover, broader multi-replica pressure, production permission and physical disk fault tests, external authentication and performance/security audits remain uncertified. Fastify, Redis, MySQL/MariaDB, automatic uncertain-state reconciliation and actual registry publication are not claimed.
 
 ## 2026-11-24 — SQLite EF Core 10 + authenticated transactional HTTP (P4)
 

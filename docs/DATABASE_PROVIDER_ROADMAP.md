@@ -56,7 +56,8 @@ TypeScript:
 - [x] Implement `ITransactionalIdempotencyExecutor<SqlConnection, SqlTransaction>` and the TypeScript `mssql.Transaction` executor.
 - [x] Run real SQL Server 2022 Standard/Transactional tests with 100 same-key contenders and a .NET server-session-kill **before COMMIT** test.
 - [x] Run complete NestJS Express SQL Server HTTP server SIGKILL before and after COMMIT, then retry the same key through a surviving host.
-- [ ] Verify equivalent ASP.NET Core HTTP server-process SIGKILL and Azure SQL failover configurations.
+- [x] Verify equivalent ASP.NET Core HTTP server-process SIGKILL, and cross-runtime HTTP replay/contestation against one SQL Server 2022 instance.
+- [ ] Verify Azure SQL failover configurations.
 - [x] Add SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express provider-specific HTTP adapters in P2. See [SQL Server EF Core + HTTP](SQLSERVER_EFCORE_HTTP_V1.md).
 - [x] Add a native SQL Server migration and [SQL Server Core v1](../spec/SQLSERVER_STORE_V1.md) setup, permissions, retention, locking and recovery guide; final CI evidence is tracked in `docs/VERIFICATION.md`.
 
@@ -71,7 +72,8 @@ TypeScript:
 - [x] Kill separate Node process before/after COMMIT, verify file recovery and same-key replay without a second insert.
 - [x] P4: SQLite EF Core 10 and authenticated ASP.NET Core/NestJS Express integrations with new file-backed real HTTP and EF tests.
 - [x] Full .NET SQLite API-process SIGKILL, coordinated mixed-runtime local file, online backup/restore, pinned checkpoint and simulated SQLite capacity limit.
-- [ ] Host disk exhaustion/filesystem permissions and production deployment verification remain open.
+- [x] Verify actual Linux filesystem permission denial and safe same-key recovery in both SQLite HTTP adapters.
+- [ ] Host disk exhaustion and production deployment verification remain open.
 
 See [SQLite Store v1](SQLITE_STORE_V1.md) and [Verification Evidence](VERIFICATION.md). P5 research and its required acceptance evidence are tracked in [Next Providers](NEXT_PROVIDERS.md).
 
@@ -84,7 +86,8 @@ See [SQLite Store v1](SQLITE_STORE_V1.md) and [Verification Evidence](VERIFICATI
 - [x] Foreign writer `SQLITE_BUSY` results in HTTP 503, not 409 proven same-key conflict.
 - [x] Node full HTTP process SIGKILL before COMMIT and after COMMIT/before reply, each followed by safe same-key retry.
 - [x] Full .NET HTTP process SIGKILL, mixed .NET/Node access to one local file, online backup/checkpoint validation and SQLITE_FULL page-cap rollback.
-- [ ] True host disk-full, permission/failover environments and production certification remain unverified.
+- [x] Verify Linux permission faults on isolated local files; read-only replay may remain available, fully inaccessible storage must fail closed.
+- [ ] True host disk-full, production filesystem/ACL and failover environments remain unverified.
 - [ ] NuGet/npm publishing and production audit.
 
 See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
