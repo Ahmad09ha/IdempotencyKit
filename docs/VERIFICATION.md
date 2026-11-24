@@ -5,6 +5,10 @@ This file records **observed test results**, separately from planned guarantees.
 
 
 
+## 2026-11-25 — Security and performance baseline
+
+PR [#15](https://github.com/Ahmad09ha/IdempotencyKit/pull/15), main `1218367`: all seven pre-merge and post-merge workflows passed. Six provider/runtime negative tests verify corrupted replay/invalid response rollback. The original baseline measured 1,728 HTTP attempts (all 201) with durable correctness; NuGet and both npm graphs reported zero known advisories. See [Security and performance lab](SECURITY_PERFORMANCE_LAB.md) for exact evidence and limits. No production security certification.
+
 ## 2026-11-24 — Relational HTTP crash, mixed-runtime and SQLite permission hardening
 
 These runs are independently verified source-head evidence, not a claim of production certification. The merged preview combination must pass its own exact-head CI.

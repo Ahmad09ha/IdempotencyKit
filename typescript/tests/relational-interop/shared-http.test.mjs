@@ -19,8 +19,9 @@ import {
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { computeScopeKey, computeRequestFingerprint } from "@idempotencykit/core";
-import { PostgresTransactionalExecutor } from "@idempotencykit/postgres";
-import { SqlServerTransactionalExecutor } from "@idempotencykit/sqlserver";
+import { PostgresTransactionalExecutor, PostgresIdempotencyStore } from "@idempotencykit/postgres";
+import { SqlServerTransactionalExecutor, SqlServerIdempotencyStore } from "@idempotencykit/sqlserver";
+import { verifyOperationalReport } from "../support/operational-report-fixture.mjs";
 import { PostgresTransactionalHttpModule, PostgresTransactionalHttpService } from "@idempotencykit/nestjs-postgres";
 import { SqlServerTransactionalHttpModule, SqlServerTransactionalHttpService } from "@idempotencykit/nestjs-sqlserver";
 
@@ -559,4 +560,45 @@ test("actual disposable database stop/start: fail closed and same-key recovery",
   }
   await assertDurable(oldKey,original);
   console.log("IDK_DATABASE_RECOVERY "+provider+" original replay + 3 safe recoveries");
+});
+
+test("read-only operational health report classifies live, expired and uncertain records", {skip:!stress,timeout:30000},async()=>{
+  const query=await readFile(new URL("../../../ops/sql/"+provider+"/record-health.sql",import.meta.url),"utf8");
+  const store=pgMode?new PostgresIdempotencyStore(pool):new SqlServerIdempotencyStore(pool);
+  await verifyOperationalReport({provider,store,
+    async runReport(){
+      if(!pgMode)return (await pool.request().query(query)).recordset;
+      const client=await pool.connect();
+      try{
+        await client.query("BEGIN READ ONLY");
+        const result=await client.query(query);
+        await client.query("COMMIT");
+        return result.rows;
+      }catch(e){await client.query("ROLLBACK");throw e;}
+      finally{client.release();}
+    },
+    async expire(key,bucket){
+      if(pgMode){
+        const clause=bucket==="processing_expired"?
+          "created_at=clock_timestamp()-interval '2 minutes',lease_expires_at=clock_timestamp()-interval '1 minute'":
+          "created_at=clock_timestamp()-interval '3 minutes',completed_at=clock_timestamp()-interval '2 minutes',expires_at=clock_timestamp()-interval '1 minute'";
+        assert.equal((await pool.query("UPDATE idempotencykit_records SET "+clause+" WHERE scope_key_hash=$1",[key])).rowCount,1);
+      }else{
+        const clause=bucket==="processing_expired"?
+          "created_at=DATEADD(minute,-2,SYSUTCDATETIME()),lease_expires_at=DATEADD(minute,-1,SYSUTCDATETIME())":
+          "created_at=DATEADD(minute,-3,SYSUTCDATETIME()),completed_at=DATEADD(minute,-2,SYSUTCDATETIME()),expires_at=DATEADD(minute,-1,SYSUTCDATETIME())";
+        assert.equal((await pool.request().input("key",sql.NVarChar(67),key)
+          .query("UPDATE dbo.idempotencykit_records SET "+clause+" WHERE scope_key_hash=@key")).rowsAffected[0],1);
+      }
+    },
+    async readStates(keys){
+      const states=[];
+      for(const key of keys){
+        const rows=pgMode?(await pool.query("SELECT state FROM idempotencykit_records WHERE scope_key_hash=$1",[key])).rows:
+          (await pool.request().input("key",sql.NVarChar(67),key).query("SELECT state FROM dbo.idempotencykit_records WHERE scope_key_hash=@key")).recordset;
+        assert.equal(rows.length,1);states.push(rows[0].state);
+      }
+      return states;
+    },
+  });
 });

@@ -125,3 +125,4 @@ jobs:
           done
           node typescript/tests/support/sqlite-performance-baseline.mjs dotnet 5050 "$dotnet_pid" stress
           node typescript/tests/support/sqlite-performance-baseline.mjs node 3000 "$nest_pid" stress
+          node --test typescript/tests/support/sqlite-operational-report.test.mjs
