@@ -1,0 +1,64 @@
+name: SQL Server 2022 Integration CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  sqlserver-dotnet:
+    name: .NET 10 + SQL Server 2022 integration
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SqlServerTest_Strong!2026"
+          MSSQL_PID: "Developer"
+        ports:
+          - 1433:1433
+    env:
+      IDEMPOTENCYKIT_TEST_SQLSERVER: "Server=127.0.0.1,1433;Database=master;User ID=sa;Password=SqlServerTest_Strong!2026;Encrypt=True;TrustServerCertificate=True;Connect Timeout=5;Max Pool Size=60"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore SQL Server tests
+        run: dotnet restore dotnet/tests/IdempotencyKit.SqlServer.Tests/IdempotencyKit.SqlServer.Tests.csproj
+      - name: Build SQL Server tests
+        run: dotnet build dotnet/tests/IdempotencyKit.SqlServer.Tests/IdempotencyKit.SqlServer.Tests.csproj -c Release --no-restore
+      - name: Real SQL Server integration tests
+        run: dotnet test dotnet/tests/IdempotencyKit.SqlServer.Tests/IdempotencyKit.SqlServer.Tests.csproj -c Release --no-build
+
+  sqlserver-typescript:
+    name: Node 24 + SQL Server 2022 integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SqlServerTest_Strong!2026"
+          MSSQL_PID: "Developer"
+        ports:
+          - 1433:1433
+    env:
+      IDEMPOTENCYKIT_TEST_SQLSERVER_HOST: "127.0.0.1"
+      IDEMPOTENCYKIT_TEST_SQLSERVER_PORT: "1433"
+      IDEMPOTENCYKIT_TEST_SQLSERVER_PASSWORD: "SqlServerTest_Strong!2026"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install workspace
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Real SQL Server integration tests
+        run: node --test tests/sqlserver-v1.test.mjs
