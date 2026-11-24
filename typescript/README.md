@@ -2,11 +2,13 @@
 
 This npm workspace includes an **implemented Standard-mode PostgreSQL store** plus a TypeScript core, and a working NestJS Standard-mode HTTP interceptor/decorator for supported Express JSON routes.
 
-- `@idempotencykit/core`: scoped request hashes, deterministic JSON fingerprints and `IdempotencyStore` contracts.
-- `@idempotencykit/postgres`: Standard-mode store plus `PostgresTransactionalExecutor`, which atomically commits SQL executed on a supplied `pg.PoolClient` with the replay record.
+- `@idempotencykit/core`: scoped hashes, deterministic JSON fingerprints, `IdempotencyStore`, and generic `TransactionalIdempotencyExecutor<TSession>` / canonical outcome types.
+- `@idempotencykit/postgres`: Standard-mode store plus `PostgresTransactionalExecutor` implementing the shared `TransactionalIdempotencyExecutor<PoolClient>` interface while keeping the existing concrete API.
 - `@idempotencykit/nestjs`: Standard-mode module, decorator and interceptor.
 - `@idempotencykit/nestjs-postgres`: `PostgresTransactionalHttpModule.forRoot` and `PostgresTransactionalHttpService.handleExpress` for guarded transaction-aware Express routes; requires `rawBody: true`.
 - `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
+
+**Provider expansion:** SQL Server and SQLite are planned, not implemented. The shared transactional outcome fixture is executed in both languages; see [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
 
 ## Build
 

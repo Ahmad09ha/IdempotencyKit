@@ -1,6 +1,6 @@
 # Architecture and design decisions (draft)
 
-> **Mixed implementation state:** Standard-mode HTTP adapters, PostgreSQL transaction executors, **EF Core 10 same-connection adapter** and **dedicated PostgreSQL transactional HTTP APIs** for ASP.NET Core and NestJS Express are implemented. Real NestJS server SIGKILL tests pass; SQL Server/SQLite adapters, universal transactional decorators, Fastify, equivalent ASP.NET process crash/failover certification and release packaging are future work. See [Transactional HTTP + EF Core](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md).
+> **Mixed implementation state:** Standard-mode HTTP adapters, PostgreSQL transaction executors, **EF Core 10 same-connection adapter** and **dedicated PostgreSQL transactional HTTP APIs** for ASP.NET Core and NestJS Express are implemented. Real NestJS server SIGKILL tests pass; SQL Server/SQLite adapters, universal transactional decorators, Fastify, equivalent ASP.NET process crash/failover certification and release packaging are future work. Shared transactional interfaces and SQL Server/SQLite design now exist; PostgreSQL implements the shared contract, but non-PostgreSQL adapters remain unimplemented. See [Transactional HTTP + EF Core](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) and [Provider Architecture](../spec/PROVIDER_ARCHITECTURE_V1.md).
 
 ## Goals
 
