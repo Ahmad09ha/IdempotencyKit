@@ -1,6 +1,6 @@
 # SQLite File-backed Standard + Transactional core v1
 
-**Status:** implemented on .NET 10 and Node.js 24, tested against **real temporary on-disk SQLite files**. This is a provider core, not a stable NuGet/npm release or production certification. SQLite-specific EF Core, ASP.NET Core and NestJS HTTP adapters remain the **P4 next milestone**.
+**Status:** implemented on .NET 10 and Node.js 24, tested against **real temporary on-disk SQLite files**. This is a provider core, not a stable NuGet/npm release or production certification. SQLite-specific EF Core 10 and authenticated ASP.NET Core/NestJS Express HTTP adapters are **now implemented and tested in P4**. See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
 
 The SQLite provider is intended for **one local host with a local database file** (potentially several cooperating processes on that same host). It is not a replacement for a PostgreSQL or SQL Server shared multi-host store. SQLite has a *single writer per database file*. WAL supports concurrent readers and a writer, not concurrent writers.
 
@@ -151,6 +151,6 @@ SQLite `BEGIN IMMEDIATE` reserves the one writer for the **entire file**, even w
 
 The dedicated CI runs temporary **actual file-backed** SQLite databases in .NET 10 and Node 24. It covers owner fencing, replays after fresh connection, mismatch isolation, expired/uncertain state, cleanup, invalid-header rejection, domain callback exception rollback, **100 same-key concurrent operations** and **unrelated process writer → SQLITE_BUSY**. The Node suite launches independent worker processes and uses **SIGKILL before and after COMMIT** with same-key retries.
 
-**Still not implemented in P3:** SQLite-specific EF Core 10 adapter, ASP.NET Core/NestJS route services, full .NET HTTP process kill, multi-host sharing, native backup/restore tooling, publishable NuGet/npm releases, or generalized reconciliation/observability.
+**P4 now implemented:** SQLite EF Core 10, ASP.NET Core/NestJS Express transactional HTTP endpoints with real-file tests and NestJS HTTP SIGKILL before/after COMMIT. **Still not implemented:** full .NET HTTP process kill, multi-host sharing, native backup/restore tooling, publishable NuGet/npm releases or generalized reconciliation/observability.
 
-P4 will build SQLite EF Core and explicit HTTP adapters, respecting this file/locality policy. For run-specific results see [Verification](VERIFICATION.md) and [Provider Rollout](DATABASE_PROVIDER_ROADMAP.md).
+P4 has added SQLite EF Core and explicit HTTP adapters, preserving this file/locality policy. For run-specific results see [Verification](VERIFICATION.md) and [Provider Rollout](DATABASE_PROVIDER_ROADMAP.md).

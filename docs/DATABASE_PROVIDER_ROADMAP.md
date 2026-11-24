@@ -1,6 +1,6 @@
 # Database provider rollout plan
 
-**Planning baseline:** PostgreSQL Standard + Transactional mode, EF Core Npgsql, ASP.NET Core and NestJS Express HTTP integration are already implemented and tested. Shared provider-neutral transactional interfaces are now being added. **SQL Server Standard and Transactional core adapters are now implemented and tested against SQL Server 2022; SQL Server EF Core 10, ASP.NET Core and NestJS Express Transactional HTTP are also implemented and tested. SQLite Standard and Transactional **database-core** adapters are now implemented and real on-disk tested in .NET and Node 24; SQLite EF Core and HTTP adapters remain planned.**
+**Planning baseline:** PostgreSQL Standard + Transactional mode, EF Core Npgsql, ASP.NET Core and NestJS Express HTTP integration are already implemented and tested. Shared provider-neutral transactional interfaces are now being added. **SQL Server Standard and Transactional core adapters are now implemented and tested against SQL Server 2022; SQL Server EF Core 10, ASP.NET Core and NestJS Express Transactional HTTP are also implemented and tested. SQLite Standard/Transactional database-core, EF Core 10, authenticated ASP.NET Core and NestJS Express HTTP adapters are implemented and real on-disk tested in .NET and Node 24.**
 
 ## Recommended sequence
 
@@ -10,7 +10,7 @@
 | P1 — SQL Server core | Durable Standard-mode claim/store + explicit SQL Server transaction executor (.NET + TypeScript) | Real SQL Server 2022 CI, 100 concurrent same-key, mismatch, replay, rollback and lock-timeout tests | **Implemented; CI verified** |
 | P2 — SQL Server HTTP/EF | Explicit ASP.NET Core endpoint mapping, EF Core SQL Server integration, NestJS Express service | Real authenticated HTTP request/replay, SQL Server EF shared transaction, Node HTTP process SIGKILL before/after COMMIT | **Implemented; CI verified** |
 | P3 — SQLite core | Local file-backed Standard + Transactional executors in .NET/Node | **24 on-disk tests**: WAL/FULL, busy, multi-connection replay, 100 contenders, rollback and SIGKILL | **Implemented; CI verified** |
-| P4 — SQLite HTTP/EF | EF Core SQLite and explicit ASP.NET Core / NestJS provider adapters where driver supports safe async lifetime | Same-key retry with exact response bytes after process restart, documented bounded writer contention | Planned |
+| P4 — SQLite HTTP/EF | EF Core SQLite and explicit ASP.NET Core / NestJS Express adapter, guarded single-writer callbacks | Exact HTTP replay across hosts, 16 same-key callers, unrelated writer 503, Node HTTP SIGKILL before/after COMMIT | **Implemented; CI verified** |
 | P5 — more engines | MySQL/MariaDB research, optional Redis Standard mode | Separate database-specific guarantees and verified CI evidence | Deferred |
 
 ## Package namespace policy
@@ -27,8 +27,8 @@ IdempotencyKit.SqlServer                        # implemented core
 IdempotencyKit.EntityFrameworkCore.SqlServer    # implemented
 IdempotencyKit.AspNetCore.SqlServer              # implemented
 IdempotencyKit.Sqlite                           # implemented core
-IdempotencyKit.EntityFrameworkCore.Sqlite       # planned
-IdempotencyKit.AspNetCore.Sqlite                 # planned
+IdempotencyKit.EntityFrameworkCore.Sqlite       # implemented
+IdempotencyKit.AspNetCore.Sqlite                 # implemented
 ~~~
 
 TypeScript:
@@ -41,10 +41,10 @@ TypeScript:
 @idempotencykit/sqlserver             # implemented core
 @idempotencykit/nestjs-sqlserver      # implemented (Express)
 @idempotencykit/sqlite                # implemented core (Node 24 built-in node:sqlite)
-@idempotencykit/nestjs-sqlite         # planned (depending on driver support)
+@idempotencykit/nestjs-sqlite         # implemented (NestJS 12 Express, Node 24)
 ~~~
 
-**PostgreSQL, SQL Server, and SQLite database-core packages exist as unpublished source packages.** SQLite-specific EF Core and HTTP projects remain planned. The existing source workspaces are not released to NuGet/npm.
+**PostgreSQL, SQL Server, and SQLite database-core packages exist as unpublished source packages.** SQLite EF Core/HTTP source integrations exist and are tested.  The existing source workspaces are not released to NuGet/npm.
 
 ## P1 — SQL Server implementation checklist
 
@@ -69,12 +69,25 @@ TypeScript:
 - [x] Propagate SQLITE_BUSY/SQLITE_LOCKED as STORAGE ERRORS, never misclassify unrelated writers as same-key InProgress.
 - [x] Test independent connections/processes, owner fencing, 100 concurrent same-key calls, mismatch, rollback, cleanup and unsafe replay handling on an actual temp SQLite file.
 - [x] Kill separate Node process before/after COMMIT, verify file recovery and same-key replay without a second insert.
-- [ ] P4: SQLite EF Core 10 and explicit authenticated ASP.NET Core/NestJS integrations with new provider-specific tests.
+- [x] P4: SQLite EF Core 10 and authenticated ASP.NET Core/NestJS Express integrations with new file-backed real HTTP and EF tests.
 - [ ] Full .NET process SIGKILL, disk-full, file-permission, operational online backup/restore and WAL checkpoint fault injection before wider production rollout.
 
 See [SQLite Store v1](SQLITE_STORE_V1.md) and [Verification Evidence](VERIFICATION.md).
 
-## Decisions for P4 and release hardening
+## P4 — SQLite EF Core and explicit HTTP checklist
+
+- [x] EF Core 10 bridge joins exact SQLite connection + transaction and fails before callback if factory uses another connection.
+- [x] ASP.NET Core authenticated transaction-aware JSON endpoints and fresh authorization before replay.
+- [x] NestJS 12 Express rawBody transaction-aware service/module using guarded SQLite statement session.
+- [x] Real-file EF Core and two-host HTTP replay, mismatch, 16-way contention, owner/lease/uncertain and error-after-SQL rollback.
+- [x] Foreign writer `SQLITE_BUSY` results in HTTP 503, not 409 proven same-key conflict.
+- [x] Node full HTTP process SIGKILL before COMMIT and after COMMIT/before reply, each followed by safe same-key retry.
+- [ ] Full .NET HTTP process SIGKILL (not just TestServer), mixed .NET/Node access to the same SQLite file, backup/checkpoint/disk-full validation.
+- [ ] NuGet/npm publishing and production audit.
+
+See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
+
+## Decisions for release hardening
 
 1. Which SQL Server versions and hosting models are officially supported? Start with 2022+/Azure SQL CI, and expand only after testing.
 2. Do we want a dedicated temporary storage-busy exception in core, or a provider-neutral categorized storage error? Until then, expose transport-level 503 rather than inventing a `409 InProgress` for unknown database writer contention.
