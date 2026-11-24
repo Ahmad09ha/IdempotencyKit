@@ -309,3 +309,19 @@ test("SIGKILL after COMMIT before caller ACK replays saved bytes without new SQL
   assert.equal(Buffer.from(replay.response.body).toString("utf8"),saved.response);
   assert.equal(count("orders_sqlite_test",scope),1);
 });
+
+test("missing processing lease becomes uncertain without a second domain callback", async () => {
+  const scope=key(), hash=fingerprint(30);
+  const claimed=await store.tryClaim(scope,hash,60_000);
+  assert.equal(claimed.status,"acquired");
+  const db=open();
+  try {
+    db.prepare(
+      "UPDATE idempotencykit_records SET lease_expires_at=NULL WHERE scope_key_hash=?",
+    ).run(scope);
+  } finally { db.close(); }
+  assert.equal((await executor.execute(scope,hash,async()=>{
+    throw new Error("Corrupt lease cannot trigger domain SQL.");
+  },86_400_000)).status,"uncertain");
+  assert.equal((await store.tryClaim(scope,hash,60_000)).status,"uncertain");
+});
