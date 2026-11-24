@@ -1,8 +1,10 @@
 
 import assert from "node:assert/strict";
 import { runHttpBaseline, readRssMiB } from "./http-performance-baseline.mjs";
+import { runSustainedHttpStress } from "./http-sustained-stress.mjs";
 
-const [runtime,portText,pidText]=process.argv.slice(2);
+const [runtime,portText,pidText,mode]=process.argv.slice(2);
+const stress=mode==="stress";
 assert.ok(["dotnet","node"].includes(runtime));
 const port=Number(portText),pid=Number(pidText);
 assert.ok(Number.isInteger(port)&&port>0&&port<=65535);
@@ -16,12 +18,12 @@ async function count(){
 }
 const before=await count();
 const seen=new Map();
-const result=await runHttpBaseline({provider:"sqlite",runtime,
+const result=await (stress?runSustainedHttpStress:runHttpBaseline)({provider:"sqlite",runtime,
   readRss:()=>readRssMiB(pid),memScope:"separate server process RSS",
   async request(key,alternate){
     const r=await fetch(base+"/orders",{
       method:"POST",headers:{...auth,"Content-Type":"application/json","Idempotency-Key":key},
-      body:alternate?'{"quantity":2,"productId":50}':'{"productId":50,"quantity":2}',
+      body:alternate==="changed"?'{"productId":50,"quantity":3}':alternate===true||alternate==="reordered"?'{"quantity":2,"productId":50}':'{"productId":50,"quantity":2}',
       signal:AbortSignal.timeout(15000)});
     return {status:r.status,location:r.headers.get("location"),bytes:Buffer.from(await r.arrayBuffer())};
   },

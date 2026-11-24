@@ -4,12 +4,14 @@ import "reflect-metadata";
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createInterface } from "node:readline";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { runHttpBaseline, readRssMiB } from "../support/http-performance-baseline.mjs";
+import { runSustainedHttpStress } from "../support/http-sustained-stress.mjs";
 import pg from "pg";
 import sql from "mssql";
 import {
@@ -17,14 +19,17 @@ import {
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { computeScopeKey, computeRequestFingerprint } from "@idempotencykit/core";
-import { PostgresTransactionalExecutor } from "@idempotencykit/postgres";
-import { SqlServerTransactionalExecutor } from "@idempotencykit/sqlserver";
+import { PostgresTransactionalExecutor, PostgresIdempotencyStore } from "@idempotencykit/postgres";
+import { SqlServerTransactionalExecutor, SqlServerIdempotencyStore } from "@idempotencykit/sqlserver";
+import { verifyOperationalReport } from "../support/operational-report-fixture.mjs";
 import { PostgresTransactionalHttpModule, PostgresTransactionalHttpService } from "@idempotencykit/nestjs-postgres";
 import { SqlServerTransactionalHttpModule, SqlServerTransactionalHttpService } from "@idempotencykit/nestjs-sqlserver";
 
 const provider = process.env.IDEMPOTENCYKIT_INTEROP_PROVIDER;
 assert.ok(["postgres", "sqlserver"].includes(provider), "Run the dedicated relational interop CI.");
 const pgMode = provider === "postgres";
+const stress = process.env.IDEMPOTENCYKIT_STRESS === "1";
+const poolLimit = stress ? 8 : 20;
 const scopeNamespace = "relational-http-crash-test";
 const operationId = "create-order";
 const subject = "crash-test-user";
@@ -67,12 +72,14 @@ function startHost(stage = "retry") {
   });
   const listeners = new Map();
   const seen = new Map();
+  let blockedCount=0;
   let stderr = "";
   child.stderr.on("data", data => { stderr = (stderr + data).slice(-4000); });
   const lines = createInterface({ input: child.stdout });
   lines.on("line", line => {
     for (const prefix of ["IK_CRASH_LISTENING:", "IK_CRASH_BLOCKED:"]) {
       if (line.startsWith(prefix)) {
+        if(prefix==="IK_CRASH_BLOCKED:")blockedCount++;
         const value = line.slice(prefix.length);
         seen.set(prefix, value);
         listeners.get(prefix)?.resolve(value);
@@ -87,6 +94,14 @@ function startHost(stage = "retry") {
   });
   const host = {
     pid: child.pid,
+    async waitForBlocked(count){
+      const end=performance.now()+15000;
+      while(blockedCount<count&&performance.now()<end){
+        assert.equal(child.exitCode,null,"Kestrel exited while saturating pool");
+        await sleep(20);
+      }
+      assert.equal(blockedCount,count,"All fixture connections must be held");
+    },
     async wait(prefix) {
       if (seen.has(prefix)) return seen.get(prefix);
       const signal = deferred();
@@ -240,7 +255,7 @@ before(async () => {
     assert.equal(url.pathname, "/idk_interop");
     dotnetConnection = process.env.IDEMPOTENCYKIT_INTEROP_DOTNET_DB;
     assert.match(dotnetConnection, /^Host=127\.0\.0\.1;Port=5432;Database=idk_interop;/);
-    pool = new pg.Pool({ connectionString: url.href, max: 20 });
+    pool = new pg.Pool({ connectionString: url.href, max: poolLimit, ...(stress && { connectionTimeoutMillis: 3000 }) });
     pool.on("error", () => {}); // Request failures remain visible to the tests.
     await pool.query(migration);
     await pool.query("CREATE TABLE ik_crash_orders (id varchar(32) PRIMARY KEY, request_key varchar(100) NOT NULL, quantity integer NOT NULL)");
@@ -250,7 +265,7 @@ before(async () => {
     const db = "idk_interop_" + randomUUID().replaceAll("-", "");
     const config = { server: "127.0.0.1", port: 1433, user: "sa", password,
       options: { encrypt: true, trustServerCertificate: true },
-      pool: { max: 20, min: 0 }, connectionTimeout: 3000, requestTimeout: 15000 };
+      pool: { max: poolLimit, min: 0, ...(stress && { acquireTimeoutMillis: 3000 }) }, connectionTimeout: 3000, requestTimeout: 15000 };
     let master;
     for (let attempt = 0; attempt < 80; attempt++) {
       const candidate = new sql.ConnectionPool({ ...config, database: "master" });
@@ -265,6 +280,7 @@ before(async () => {
       await master.request().query("CREATE DATABASE [" + db + "]");
     } finally { await master.close(); }
     pool = await new sql.ConnectionPool({ ...config, database: db }).connect();
+    pool.on("error", () => {}); // Outage is asserted at the HTTP and durable-state boundaries.
     // CI password is supplied by this job; escape it as an ADO.NET quoted value.
     dotnetConnection = 'Server=127.0.0.1,1433;Database=' + db +
       ';User ID=sa;Password="' + password.replaceAll('"', '""') +
@@ -272,6 +288,7 @@ before(async () => {
     await pool.request().query(migration);
     await pool.request().query("CREATE TABLE dbo.ik_crash_orders (id varchar(32) PRIMARY KEY, request_key varchar(100) NOT NULL, quantity int NOT NULL)");
   }
+  if(stress) dotnetConnection += pgMode ? ";Maximum Pool Size=8;Timeout=3" : ";Max Pool Size=8;Connect Timeout=3";
   const executor = pgMode ? new PostgresTransactionalExecutor(pool, 300) :
     new SqlServerTransactionalExecutor(pool, 300);
   class FixtureModule {}
@@ -383,4 +400,205 @@ test("bounded HTTP performance baseline preserves durable correctness", {
       request:(k,alternate)=>request(base,k,alternate?reordered:body),
       verify:assertDurable,readRss:()=>readRssMiB(pid),memScope});
   }
+});
+
+test("sustained three-level HTTP load across each runtime", {skip:!stress,timeout:300000}, async()=>{
+  for(const [runtime,base,pid,memScope] of [
+    ["dotnet",dotnetBase,runningHost.pid,"Kestrel process RSS"],
+    ["node",nestBase,process.pid,"NestJS + test/load-client process RSS"],
+  ]){
+    await runSustainedHttpStress({provider,runtime,
+      request:(k,kind)=>request(base,k,kind==="changed"?changed:kind==="reordered"?reordered:body),
+      verify:assertDurable,readRss:()=>readRssMiB(pid),memScope,
+      readPool:runtime==="node"?()=>pgMode?
+        {total:pool.totalCount,idle:pool.idleCount,waiting:pool.waitingCount}:
+        {size:pool.size,available:pool.available,borrowed:pool.borrowed,pending:pool.pending}:()=>null});
+  }
+});
+
+function assertUnavailable(r){
+  assert.equal(r.status,503,r.bytes.toString());
+  assert.equal(JSON.parse(r.bytes).code,"IDEMPOTENCY_TRANSACTION_UNAVAILABLE");
+}
+async function retryAfterStorage(base,key){
+  const deadline=performance.now()+60000;
+  for(let i=0;i<30&&performance.now()<deadline;i++){
+    const r=await request(base,key);
+    if(r.status===201){assertCreated(r);return r;}
+    if(r.status===409)assertConflict(r);else assertUnavailable(r);
+    await sleep(Math.min(250+i*150,2000));
+  }
+  assert.fail("Storage recovery did not complete");
+}
+test("exhaust NestJS connection pool then recover without duplicate writes", {skip:!stress,timeout:60000}, async()=>{
+  const leases=[];
+  const oldKey=newKey(),original=await request(nestBase,oldKey);
+  assertCreated(original);
+  const newOperation=newKey();
+  try{
+    for(let i=0;i<poolLimit;i++){
+      if(pgMode){
+        const client=await pool.connect();
+        leases.push(()=>client.release());
+      }else{
+        const tx=new sql.Transaction(pool);
+        await tx.begin();
+        leases.push(()=>tx.rollback());
+      }
+    }
+    // Real driver occupancy, not an artificial mocked timeout.
+    if(pgMode){assert.equal(pool.totalCount,poolLimit);assert.equal(pool.idleCount,0);}
+    else assert.equal(pool.borrowed,poolLimit);
+    const responses=await Promise.all([request(nestBase,newOperation),request(nestBase,oldKey)]);
+    for(const r of responses)assertUnavailable(r);
+  }finally{
+    await Promise.all(leases.map(release=>release()));
+  }
+  let missing=await readState(newOperation);
+  assert.equal(missing.orders.length,0);assert.equal(missing.records.length,0);
+  assertReplay(await retryAfterStorage(nestBase,oldKey),original);
+  const recovered=await retryAfterStorage(nestBase,newOperation);
+  assertReplay(await request(dotnetBase,newOperation),recovered);
+  await assertDurable(newOperation,recovered);await assertDurable(oldKey,original);
+  console.log("IDK_POOL_RECOVERY "+provider+" node");
+});
+
+test("exhaust Kestrel connection pool then recover on the same host", {skip:!stress,timeout:90000}, async()=>{
+  const holder=startHost("pool-hold");
+  let pending=[];
+  try{
+    const base=await holder.wait("IK_CRASH_LISTENING:");
+    const oldKey=newKey(),original=await request(base,oldKey);
+    assertCreated(original);
+    const heldKeys=Array.from({length:poolLimit},()=> "pool-held-"+randomUUID());
+    pending=heldKeys.map(key=>request(base,key).then(r=>({r}),error=>({error})));
+    await holder.waitForBlocked(poolLimit);
+    const newOperation=newKey();
+    // The fixture holds all eight leased physical connections for 12 seconds.
+    // Connection acquisition timeout is 3 seconds; no extra connection is available.
+    const responses=await Promise.all([request(base,newOperation),request(base,oldKey)]);
+    for(const r of responses)assertUnavailable(r);
+    const results=await Promise.all(pending);
+    for(let i=0;i<results.length;i++){
+      if(results[i].error)throw results[i].error;
+      assertCreated(results[i].r);
+      await assertDurable(heldKeys[i],results[i].r);
+    }
+    const missing=await readState(newOperation);
+    assert.equal(missing.orders.length,0);assert.equal(missing.records.length,0);
+    assertReplay(await retryAfterStorage(base,oldKey),original);
+    const recovered=await retryAfterStorage(base,newOperation);
+    assertReplay(await request(nestBase,newOperation),recovered);
+    await assertDurable(newOperation,recovered);await assertDurable(oldKey,original);
+    console.log("IDK_POOL_RECOVERY "+provider+" dotnet");
+  }finally{
+    if(hosts.has(holder))await holder.stop();
+    await Promise.allSettled(pending);
+  }
+});
+
+test("actual disposable database stop/start: fail closed and same-key recovery", {
+  skip:!stress,timeout:240000,
+},async()=>{
+  const container=process.env.IDEMPOTENCYKIT_OUTAGE_CONTAINER;
+  assert.equal(process.env.GITHUB_ACTIONS,"true","Only the dedicated CI service may be stopped");
+  assert.match(container??"",/^[a-f0-9]{64}$/);
+  const run=promisify(execFile);
+  const docker=async(...args)=>(await run("docker",args,{timeout:45000})).stdout.trim();
+  const image=await docker("inspect","--format","{{.Config.Image}}",container);
+  assert.equal(image,pgMode?"postgres:17":"mcr.microsoft.com/mssql/server:2022-latest");
+  const oldKey=newKey(),original=await request(dotnetBase,oldKey);
+  assertCreated(original);
+  assertReplay(await request(nestBase,oldKey),original);
+  const freshDotnet=newKey(),freshNode=newKey(),interrupted=newKey();
+  // A live Node transaction has already inserted its order, but has not committed.
+  gate={key:interrupted,entered:deferred(),release:deferred()};
+  const active=request(nestBase,interrupted).then(r=>({r}),error=>({error}));
+  let stopped=false;
+  try{
+    await bounded(gate.entered.promise,10000,"No active transaction to interrupt");
+    await docker("stop","--time","10",container);
+    stopped=true;
+    assert.equal(await docker("inspect","--format","{{.State.Running}}",container),"false");
+    gate.release.resolve();gate=undefined;
+    const cut=await active;
+    if(cut.r)assertUnavailable(cut.r);
+    else assert.ok(cut.error,"Interrupted operation must not deliver success");
+    const offline=await Promise.all([
+      request(dotnetBase,freshDotnet),request(dotnetBase,oldKey),
+      request(nestBase,freshNode),request(nestBase,oldKey),
+    ]);
+    for(const r of offline)assertUnavailable(r);
+    console.log("IDK_DATABASE_OFFLINE "+provider+" 4/4 fail-closed");
+  }finally{
+    gate?.release.resolve();gate=undefined;
+    // Start the exact existing CI service; never remove it or create a new DB.
+    if(stopped||await docker("inspect","--format","{{.State.Running}}",container)==="false")
+      await docker("start",container);
+    await active;
+  }
+  const deadline=performance.now()+60000;
+  for(;;){
+    try{
+      if(pgMode)await pool.query("SELECT 1");else await pool.request().query("SELECT 1");
+      break;
+    }catch(e){if(performance.now()>deadline)throw e;await sleep(1000);}
+  }
+  // Durable proof before any retry: the interrupted transaction rolled back.
+  for(const key of [interrupted,freshDotnet,freshNode]){
+    const state=await readState(key);
+    assert.equal(state.orders.length,0);assert.equal(state.records.length,0);
+  }
+  assertReplay(await retryAfterStorage(dotnetBase,oldKey),original);
+  assertReplay(await retryAfterStorage(nestBase,oldKey),original);
+  for(const [base,other,key] of [
+    [dotnetBase,nestBase,freshDotnet],[nestBase,dotnetBase,freshNode],[nestBase,dotnetBase,interrupted],
+  ]){
+    const recovered=await retryAfterStorage(base,key);
+    assertReplay(await retryAfterStorage(other,key),recovered);
+    await assertDurable(key,recovered);
+  }
+  await assertDurable(oldKey,original);
+  console.log("IDK_DATABASE_RECOVERY "+provider+" original replay + 3 safe recoveries");
+});
+
+test("read-only operational health report classifies live, expired and uncertain records", {skip:!stress,timeout:30000},async()=>{
+  const query=await readFile(new URL("../../../ops/sql/"+provider+"/record-health.sql",import.meta.url),"utf8");
+  const store=pgMode?new PostgresIdempotencyStore(pool):new SqlServerIdempotencyStore(pool);
+  await verifyOperationalReport({provider,store,
+    async runReport(){
+      if(!pgMode)return (await pool.request().query(query)).recordset;
+      const client=await pool.connect();
+      try{
+        await client.query("BEGIN READ ONLY");
+        const result=await client.query(query);
+        await client.query("COMMIT");
+        return result.rows;
+      }catch(e){await client.query("ROLLBACK");throw e;}
+      finally{client.release();}
+    },
+    async expire(key,bucket){
+      if(pgMode){
+        const clause=bucket==="processing_expired"?
+          "created_at=clock_timestamp()-interval '2 minutes',lease_expires_at=clock_timestamp()-interval '1 minute'":
+          "created_at=clock_timestamp()-interval '3 minutes',completed_at=clock_timestamp()-interval '2 minutes',expires_at=clock_timestamp()-interval '1 minute'";
+        assert.equal((await pool.query("UPDATE idempotencykit_records SET "+clause+" WHERE scope_key_hash=$1",[key])).rowCount,1);
+      }else{
+        const clause=bucket==="processing_expired"?
+          "created_at=DATEADD(minute,-2,SYSUTCDATETIME()),lease_expires_at=DATEADD(minute,-1,SYSUTCDATETIME())":
+          "created_at=DATEADD(minute,-3,SYSUTCDATETIME()),completed_at=DATEADD(minute,-2,SYSUTCDATETIME()),expires_at=DATEADD(minute,-1,SYSUTCDATETIME())";
+        assert.equal((await pool.request().input("key",sql.NVarChar(67),key)
+          .query("UPDATE dbo.idempotencykit_records SET "+clause+" WHERE scope_key_hash=@key")).rowsAffected[0],1);
+      }
+    },
+    async readStates(keys){
+      const states=[];
+      for(const key of keys){
+        const rows=pgMode?(await pool.query("SELECT state FROM idempotencykit_records WHERE scope_key_hash=$1",[key])).rows:
+          (await pool.request().input("key",sql.NVarChar(67),key).query("SELECT state FROM dbo.idempotencykit_records WHERE scope_key_hash=@key")).recordset;
+        assert.equal(rows.length,1);states.push(rows[0].state);
+      }
+      return states;
+    },
+  });
 });

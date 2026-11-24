@@ -57,3 +57,18 @@ const unsubscribe = subscribeIdempotencyTelemetry(({ stage, outcome, durationMs 
 Here `metrics` represents your application's existing metrics implementation. The callback is process-local and receives a frozen event; callbacks are not awaited, and thrown/rejected callback errors cannot change the idempotency result. Keep collectors lightweight and nonblocking; aggregate/export outside the request path.
 
 Alert on sustained increases in `error`, `unconfirmed` and `uncertain`, abnormal `in_progress` rates and latency percentiles, and a spike in fingerprint mismatches after SDK or deployment changes. Inspect storage health separately. For unresolved record age/backlog, monitor aggregate state using a read-only operational job, without selecting response bytes or unique IDs. The available `created_at` is creation time, not the time a row became uncertain. Do not turn these dashboards into automatic reset or retry triggers.
+
+## Read-only incident health reports
+
+The repository contains provider-specific SQL under [ops/sql](../ops/sql). Run only using an application-approved monitoring identity with read-only access (SQLite: read-only connection to a supported local file, with the required WAL access). They return **only** bucket, record count and oldest creation age in seconds; missing buckets mean zero. No key, owner token, caller identity, raw header or replay body is selected. Use database time; creation age is not age since a transition. SQL Server uses UTC and second-boundary granularity. Future timestamps are clamped to zero age.
+
+| Bucket | Interpretation and operator action |
+| --- | --- |
+| processing_active | An unexpired committed Standard claim exists; this does not prove a worker is alive. Monitor, do not reset. |
+| processing_expired | Lease expired or missing; investigate as potentially uncertain. Do not assume that the business operation stopped. |
+| uncertain | Outcome not proven; preserve the record and use the manual reconciliation procedure above. |
+| completed_retained | Within configured retention; preserve result. |
+| completed_expired | Eligible for the existing bounded completed-only cleanup, subject to retention policy. |
+| invalid_state | Unexpected state/missing completion expiry; investigate storage integrity, do not repair automatically. |
+
+These are aggregate full-table reads, not a request-path endpoint or automatic cleanup. Run with appropriate query timeout, cadence and least privilege; a large table may be expensive or contend with writers. The SQL is intentionally not a migration. The diagnostic query never changes data or grants any permissions. A stalled claim or absent record is **not proof** of rollback. Business-specific reconciliation, authorization to reopen a command, and any new generic mutation API are separate product/security decisions. Use domain identifiers and authorized application audit records; avoid sensitive data in monitoring and incident exports.

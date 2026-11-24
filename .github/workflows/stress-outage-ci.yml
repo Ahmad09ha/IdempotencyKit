@@ -1,0 +1,128 @@
+name: Stress, Pool and Database Outage CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    name: ASP.NET + NestJS on one PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: idk_interop
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d idk_interop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      IDEMPOTENCYKIT_PERF_BASELINE: "1"
+      IDEMPOTENCYKIT_STRESS: "1"
+      IDEMPOTENCYKIT_INTEROP_PROVIDER: postgres
+      IDEMPOTENCYKIT_INTEROP_POSTGRES_URL: postgresql://postgres:testpass@127.0.0.1:5432/idk_interop
+      IDEMPOTENCYKIT_INTEROP_DOTNET_DB: Host=127.0.0.1;Port=5432;Database=idk_interop;Username=postgres;Password=testpass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the actual Kestrel test host
+        run: dotnet build dotnet/tests/fixtures/IdempotencyKit.Relational.CrashHost -c Release
+      - name: Build Node workspace
+        working-directory: typescript
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run build
+      - name: Sustained stress and real PostgreSQL outage
+        env:
+          IDEMPOTENCYKIT_OUTAGE_CONTAINER: ${{ job.services.postgres.id }}
+        working-directory: typescript
+        run: node --test tests/relational-interop/shared-http.test.mjs
+
+  sqlserver:
+    name: ASP.NET + NestJS on one SQL Server 2022
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SqlServerTest_Strong!2026"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+    env:
+      IDEMPOTENCYKIT_PERF_BASELINE: "1"
+      IDEMPOTENCYKIT_STRESS: "1"
+      IDEMPOTENCYKIT_INTEROP_PROVIDER: sqlserver
+      IDEMPOTENCYKIT_INTEROP_SQLSERVER_PASSWORD: "SqlServerTest_Strong!2026"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the actual Kestrel test host
+        run: dotnet build dotnet/tests/fixtures/IdempotencyKit.Relational.CrashHost -c Release
+      - name: Build Node workspace
+        working-directory: typescript
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run build
+      - name: Sustained stress and real SQL Server outage
+        env:
+          IDEMPOTENCYKIT_OUTAGE_CONTAINER: ${{ job.services.sqlserver.id }}
+        working-directory: typescript
+        run: node --test tests/relational-interop/shared-http.test.mjs
+
+  sqlite:
+    name: SQLite separate ASP.NET and NestJS sustained HTTP load
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: typescript/.nvmrc
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - run: dotnet build dotnet/samples/Orders.AspNetCore/Orders.AspNetCore.csproj --configuration Release
+      - run: npm ci --no-audit --no-fund && npm run build
+        working-directory: typescript
+      - name: Exercise real local-file SQLite at 8, 32 and 128 clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          logs=$(mktemp -d)
+          ORDERS_DB_PATH="$logs/dotnet.db" PORT=5050 dotnet dotnet/samples/Orders.AspNetCore/bin/Release/net10.0/Orders.AspNetCore.dll >"$logs/dotnet.log" 2>&1 &
+          dotnet_pid=$!
+          ORDERS_DB_PATH="$logs/nest.db" PORT=3000 node typescript/apps/orders-api/dist/main.js >"$logs/nest.log" 2>&1 &
+          nest_pid=$!
+          trap 'code=$?; kill "$dotnet_pid" "$nest_pid" 2>/dev/null || true; if (( code != 0 )); then tail -n 100 "$logs/"*.log; fi; rm -rf "$logs"' EXIT
+          for port in 5050 3000; do
+            curl --silent --show-error --fail --retry 25 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$port/health"
+          done
+          node typescript/tests/support/sqlite-performance-baseline.mjs dotnet 5050 "$dotnet_pid" stress
+          node typescript/tests/support/sqlite-performance-baseline.mjs node 3000 "$nest_pid" stress
+          node --test typescript/tests/support/sqlite-operational-report.test.mjs
