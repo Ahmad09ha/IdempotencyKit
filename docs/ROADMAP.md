@@ -21,7 +21,7 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. No SQL Server/SQLite adapters, universal transactional annotations, publication or automated reconciliation are available.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core/HTTP, SQLite, universal annotations, publication and automated reconciliation remain future work.
 
 ## Phase 1 — .NET Standard mode
 
@@ -71,6 +71,17 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [ ] Add provider-specific migration versions, real-database stress tests and failure injection instead of assuming PostgreSQL SQL is portable.
 
 **Full staged plan:** [Database Provider Rollout](DATABASE_PROVIDER_ROADMAP.md) and [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
+
+## SQL Server core implementation (P1)
+
+- [x] Implement separate SQL Server 2022 schema migration with unique scoped key, safe JSON replay fields and UTC retention.
+- [x] Implement `SqlServerIdempotencyStore` and `SqlServerTransactionalExecutor` for .NET with `Microsoft.Data.SqlClient`.
+- [x] Implement equivalent `@idempotencykit/sqlserver` Standard + Transactional stores through `mssql`.
+- [x] Use transaction-owned, same-key `sp_getapplock` across both modes and both language implementations.
+- [x] Add real SQL Server 2022 CI for both ecosystems, preserving independent PostgreSQL CI.
+- [x] Add regression tests for owner fencing, mismatch, replay, rollback, uncertain outcomes, cleanup and 100-way concurrency.
+- [ ] Add SQL Server EF Core 10/ASP.NET Core and NestJS Express transactional HTTP adapters (next milestone).
+- [ ] Run Azure SQL-specific durability/failover and full HTTP process-crash suites before supporting those production claims.
 
 ## Phase 4 — Hardening and observability
 

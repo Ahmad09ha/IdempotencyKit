@@ -4,6 +4,7 @@
     <Project Path="src/IdempotencyKit.AspNetCore/IdempotencyKit.AspNetCore.csproj" />
     <Project Path="src/IdempotencyKit.AspNetCore.Postgres/IdempotencyKit.AspNetCore.Postgres.csproj" />
     <Project Path="src/IdempotencyKit.Postgres/IdempotencyKit.Postgres.csproj" />
+    <Project Path="src/IdempotencyKit.SqlServer/IdempotencyKit.SqlServer.csproj" />
     <Project Path="src/IdempotencyKit.EntityFrameworkCore.Postgres/IdempotencyKit.EntityFrameworkCore.Postgres.csproj" />
   </Folder>
   <Folder Name="/samples/">

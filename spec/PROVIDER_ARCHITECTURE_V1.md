@@ -1,6 +1,6 @@
 # Relational database provider architecture v1
 
-**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server, SQLite, MySQL and MariaDB adapters do not exist yet.** Their behavior below is proposed and must not be advertised as implemented or verified.
+**Status (2026-11-24):** Contract and provider-expansion design. PostgreSQL implements the new provider-neutral transactional interface, with real PostgreSQL tests. **SQL Server 2022 Standard and Transactional core adapters now exist and have real SQL Server CI coverage in both languages.** SQL Server EF Core and HTTP integrations, SQLite, MySQL and MariaDB remain future work. Azure SQL and cross-provider failover guarantees are not verified.
 
 ## Design objective
 
@@ -23,7 +23,7 @@ Provider-neutral contracts:
                  / TransactionalIdempotencyExecutor<TSession>
       |
 Provider implementation:
-  PostgreSQL (implemented) | SQL Server (planned) | SQLite (planned)
+  PostgreSQL (implemented) | SQL Server (core implemented) | SQLite (planned)
       |
 Provider-owned connection, transaction, schema, locking and cleanup
 ~~~
@@ -68,7 +68,7 @@ export interface TransactionalIdempotencyExecutor<TSession> {
 }
 ~~~
 
-`TSession` is supplied by the database adapter: PostgreSQL uses `pg.PoolClient`. The future SQL Server and SQLite adapters must choose appropriate session/transaction wrapper types and **cannot** silently start their own independent transaction in the callback. Provider-specific SQL syntax belongs in the business operation.
+`TSession` is supplied by the database adapter: PostgreSQL uses `pg.PoolClient`. SQL Server now uses `mssql.Transaction` and SQLite must later choose an appropriate session/transaction wrapper type and **cannot** silently start their own independent transaction in the callback. Provider-specific SQL syntax belongs in the business operation.
 
 The PostgreSQL adapter implements the interface. Its original exported result/status types remain available through type reexports from the core, rather than newly duplicated definitions.
 
@@ -119,26 +119,26 @@ Do **not** add automatic uncertain-record reclaims just to make SQLite or SQL Se
 
 | Capability | PostgreSQL | SQL Server / Azure SQL | SQLite |
 | --- | --- | --- | --- |
-| Shared app deployment | Server database, verified in CI | Server database, planned | **Local file / one host** by default; not network WAL |
-| Atomic transactional callback | Implemented via Npgsql/pg | Plan SqlConnection/SqlTransaction and driver-bound Node request | Plan Microsoft.Data.Sqlite/SQLite-owned session |
-| Claim serialization | Unique index, uncommitted INSERT | Unique index plus transaction-owned keyed lock candidate | `BEGIN IMMEDIATE` single writer, unique index |
-| Standard-mode leases | Implemented | Planned owner-fenced updates | Planned local-file semantics |
-| Queueing/timeout | PostgreSQL `lock_timeout` | Bounded `sp_getapplock` wait or proven alternative | `busy_timeout` / `SQLITE_BUSY`; distinguish unrelated writer |
+| Shared app deployment | Server database, verified in CI | Server database; SQL Server 2022 Docker CI verified | **Local file / one host** by default; not network WAL |
+| Atomic transactional callback | Implemented via Npgsql/pg | **Implemented** via SqlConnection/SqlTransaction and mssql.Transaction | Plan Microsoft.Data.Sqlite/SQLite-owned session |
+| Claim serialization | Unique index, uncommitted INSERT | **Implemented** unique PK plus transaction-owned per-key sp_getapplock | `BEGIN IMMEDIATE` single writer, unique index |
+| Standard-mode leases | Implemented | **Implemented**, owner-fenced and fail-closed uncertain | Planned local-file semantics |
+| Queueing/timeout | PostgreSQL `lock_timeout` | **Implemented** bounded sp_getapplock same-key timeout | `busy_timeout` / `SQLITE_BUSY`; distinguish unrelated writer |
 | JSON replay storage | `bytea` + `jsonb` | `varbinary(max)` + `nvarchar(max)` | `BLOB` + `TEXT` |
 | EF Core | Npgsql tested | Microsoft.EntityFrameworkCore.SqlServer planned | Microsoft.EntityFrameworkCore.Sqlite planned |
-| Actual provider test matrix | PostgreSQL 17 | Real SQL Server/Azure SQL CI needed | **File-backed** SQLite with multi-connection/process tests |
+| Actual provider test matrix | PostgreSQL 17 | **SQL Server 2022 real CI**; Azure SQL still unverified | **File-backed** SQLite with multi-connection/process tests |
 
 No feature should be checked off for a provider until its real-database suite establishes the corresponding behavior.
 
-## SQL Server provider design (proposed)
+## SQL Server provider implementation (core implemented; HTTP/EF planned)
 
 - **Priority:** first after the core abstraction, for server-hosted .NET APIs and horizontally scaled NestJS services.
-- **Target for initial validation:** SQL Server 2022+/Azure SQL Database (final support matrix requires CI evidence).
-- **Drivers:** `Microsoft.Data.SqlClient` for .NET; evaluate a pinned Node SQL Server driver (e.g. `mssql`/Tedious) with transaction-bound requests. EF Core SQL Server must join the exact `SqlConnection` / `SqlTransaction`.
+- **Tested target:** SQL Server 2022 Developer container in GitHub Actions. **Azure SQL remains unverified** (including tier-specific behavior and failover).
+- **Implemented drivers:** `Microsoft.Data.SqlClient` **6.1.8 LTS** in .NET and `mssql` 12.x/Tedious in Node.js. The .NET callback receives `SqlConnection` + `SqlTransaction`; TypeScript receives `mssql.Transaction` and creates every business query via `new sql.Request(transaction)`. EF Core SQL Server is planned.
 - **Schema:** unique non-null `scope_key_hash` index; canonical fingerprint; owner UUID; explicit state; UTC timestamps; binary replay bytes; safe-header JSON text; nullable completion/lease expiry fields; versioned T-SQL migration. Do not reuse PostgreSQL `jsonb`/`bytea`/`interval` syntax.
-- **Claim design candidate:** start a DB transaction, acquire a transaction-owned `sp_getapplock` resource derived from the scoped hash (`@LockOwner='Transaction'` and bounded `@LockTimeout`), inspect or insert the unique row, execute the domain operation on that same transaction, record result, COMMIT. Preserve the unique index regardless of the lock strategy. Treat lock timeout, deadlock, cancellation and resource errors according to their actual documented return/error codes; do not blindly convert all negatives to `InProgress`.
-- **Alternatives to benchmark:** indexed key-range locks with `UPDLOCK` / `HOLDLOCK` under defined isolation, handling both existing and absent keys. Account explicitly for row-versioning / RCSI / SNAPSHOT configurations, deadlock victims and lock escalation. The design is **not finalized** until 100+ contenders and crash tests pass.
-- **Standard-mode path:** separate durable claim, owner fencing, lease handling, fail-closed uncertain state, bounded cleanup batches, and interoperability with transactional records in one database.
+- **Implemented claim design:** open a READ COMMITTED transaction, acquire `sys.sp_getapplock` keyed by the scoped SHA-256 key (`@LockOwner='Transaction'`, bounded `@LockTimeout`), read/insert the unique row, run domain SQL on the SAME transaction, store validated response and COMMIT. Only the same-resource `-1` timeout means `InProgress`. Canceled/deadlocked/other resource errors throw and fail closed.
+- **Why no `UPDLOCK/HOLDLOCK` for absent-key reads:** under SQL Server, SERIALIZABLE key-range locks can block inserts of different scoped keys sharing an index gap. The transaction-owned per-key application lock already serializes IdempotencyKit writers of that key; a unique primary key is a second safeguard. The CI verifies 100 same-key contenders and independent-key progress. Database-specific RCSI/SNAPSHOT tuning and multi-host benchmarks remain future hardening.
+- **Standard-mode implementation:** separate durable claim, owner fencing, lease handling, fail-closed uncertain state, bounded cleanup batches, and interoperability with transactional records in one database. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
 - **Security:** database principals, app-lock resource namespace, permissions and locking scope must be reviewed. No SQL string interpolation of user-supplied keys into query text.
 
 Official references: [SQL Server locking and key-range locks](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide), [`sp_getapplock`](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), [EF Core cross-context transactions](https://learn.microsoft.com/en-us/ef/core/saving/transactions).
@@ -189,4 +189,4 @@ Run each scenario against an **actual provider instance or durable local file**,
 - Existing .NET concrete `PostgresTransactionalExecutor.ExecuteAsync` and TypeScript `PostgresTransactionalExecutor.execute` remain unchanged in this milestone.
 - Refactor shared validation/orchestration only after the provider contract is tested; do not change existing Standard-mode semantics incidentally.
 
-**Current implementation milestone:** only the shared interfaces, shared fixture and PostgreSQL conformance are implemented. SQL Server and SQLite are the next adapter implementation milestones, not features shipped by this document.
+**Current implementation milestone:** PostgreSQL and SQL Server Standard/Transactional **core** providers implement the shared contracts with real database CI; SQL Server EF Core/HTTP, SQLite and further adapters remain future milestones. See [SQL Server Core v1](SQLSERVER_STORE_V1.md).
