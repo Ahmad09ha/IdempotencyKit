@@ -265,3 +265,19 @@ integration("different scoped keys have independent SQL Server application locks
   assert.equal(await count("idempotencykit_sqlserver_orders_test", otherKey), 1);
   assert.equal(await count("idempotencykit_sqlserver_orders_test", heldKey), 1);
 });
+
+integration("tampered completed headers are rejected rather than replayed", async () => {
+  const scope = key(), fp = fingerprint(23);
+  const claim = await store.tryClaim(scope, fp, 60_000);
+  assert.equal(claim.status, "acquired");
+  assert.equal(await store.tryComplete(scope, fp, claim.ownerToken,
+    response(1, 23), 86_400_000), true);
+
+  // Valid JSON, invalid replayable header: the store must fail closed.
+  await pool.request().input("key", sql.NVarChar(67), scope)
+    .query(`
+      UPDATE dbo.idempotencykit_records
+        SET response_headers = N'{"set-cookie":"secret=1"}'
+      WHERE scope_key_hash = @key`);
+  await assert.rejects(() => store.tryClaim(scope, fp, 60_000));
+});

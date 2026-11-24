@@ -418,4 +418,31 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
         Assert.Equal(1L, await CountAsync("idempotencykit_records", key));
     }
 
+
+    [Fact]
+    public async Task CorruptCompletedReplayHeadersAreRejectedBeforeExposure()
+    {
+        var store = new SqlServerIdempotencyStore(fixture.ConnectionString);
+        string key = NewKey(), hash = Fingerprint(23);
+        var claimed = await store.TryClaimAsync(key, hash, TimeSpan.FromMinutes(1));
+        Assert.True(await store.TryCompleteAsync(
+            key, hash, claimed.OwnerToken!.Value, Response(1, 23),
+            TimeSpan.FromHours(1)));
+
+        // Simulate a badly modified/compromised database row whose JSON is
+        // syntactically valid, but contains an unsafe header.
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = new SqlCommand("""
+            UPDATE dbo.idempotencykit_records
+               SET response_headers = N'{"set-cookie":"token=secret"}'
+             WHERE scope_key_hash = @key
+            """, connection);
+        command.Parameters.AddWithValue("@key", key);
+        await command.ExecuteNonQueryAsync();
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            store.TryClaimAsync(key, hash, TimeSpan.FromMinutes(1)));
+    }
+
 }
