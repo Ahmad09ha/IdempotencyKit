@@ -1,6 +1,6 @@
 {
   "name": "@idempotencykit/nestjs-sqlserver",
-  "version": "0.0.0",
+  "version": "0.1.0-preview.1",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -18,16 +18,29 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@idempotencykit/core": "0.0.0",
-    "@idempotencykit/nestjs": "0.0.0",
-    "@idempotencykit/sqlserver": "0.0.0",
+    "@idempotencykit/core": "0.1.0-preview.1",
+    "@idempotencykit/nestjs": "0.1.0-preview.1",
+    "@idempotencykit/sqlserver": "0.1.0-preview.1",
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^24.0.0",
     "mssql": "^12.8.1"
   },
   "peerDependencies": {
     "@nestjs/common": "^12.0.0",
     "@nestjs/core": "^12.0.0"
   },
-  "devDependencies": {
-    "@types/mssql": "^12.3.0"
+  "description": "Explicit transactional HTTP idempotency for NestJS Express and SQL Server 2022.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",
+    "directory": "typescript/packages/nestjs-sqlserver"
+  },
+  "homepage": "https://github.com/Ahmad09ha/IdempotencyKit#readme",
+  "bugs": {
+    "url": "https://github.com/Ahmad09ha/IdempotencyKit/issues"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

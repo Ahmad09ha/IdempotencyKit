@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <Description>Explicit EF Core 10 / SQL Server same-transaction bridge for IdempotencyKit.</Description>
   </PropertyGroup>
   <ItemGroup>

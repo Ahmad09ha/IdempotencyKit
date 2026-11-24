@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <Description>Database-independent scoped identity, Standard-mode store, and transactional execution contracts.</Description>
   </PropertyGroup>
 </Project>

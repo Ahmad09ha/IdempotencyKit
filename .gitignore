@@ -132,3 +132,6 @@ logs/
 # Do NOT ignore: package-lock.json, pnpm-lock.yaml, yarn.lock, *.slnx,
 # global.json, Directory.Packages.props, migrations, appsettings.json,
 # .env.example, Dockerfiles, or source/configuration under version control.
+
+# Local npm package archives
+*.tgz

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <Description>Explicit same-transaction EF Core + PostgreSQL bridge for IdempotencyKit.</Description>
   </PropertyGroup>
   <ItemGroup>

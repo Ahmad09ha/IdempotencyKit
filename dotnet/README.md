@@ -1,6 +1,6 @@
 # .NET 10 workspace
 
-The solution includes scoped fingerprints, Standard-mode HTTP, a PostgreSQL transaction executor, **EF Core 10 shared-transaction integration**, **transactional ASP.NET Core PostgreSQL endpoints**, xUnit integration tests and a health-only sample.
+The solution includes scoped fingerprints, Standard-mode HTTP, a PostgreSQL transaction executor, **EF Core 10 shared-transaction integration**, **transactional ASP.NET Core PostgreSQL endpoints**, xUnit integration tests and a runnable SQLite Orders sample.
 
 - `IdempotencyKit.Core`: scoped identity, canonical JSON fingerprints, `IIdempotencyStore`, and provider-neutral `ITransactionalIdempotencyExecutor<TConnection,TTransaction>` + `TransactionalExecutionResult`.
 - `IdempotencyKit.Postgres`: PostgreSQL Standard-mode store plus atomic transaction executor, implementing the shared core interface.
@@ -50,4 +50,4 @@ This is not a complete sample API. **Do not assume calling TryClaim makes arbitr
 
 See [Transactional HTTP + EF Core](../docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) and [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) and [`PostgresTransactionalTests.cs`](tests/IdempotencyKit.Postgres.Tests/PostgresTransactionalTests.cs) for the fully tested atomic callback API. Do not reuse Standard-mode `[Idempotent]` on a route executing this transactional callback.
 
-The `Orders.AspNetCore` sample still exposes `GET /health` only. For tested protected endpoint examples, see [`HttpStandardTests.cs`](tests/IdempotencyKit.AspNetCore.Tests/HttpStandardTests.cs) and [HTTP integration guide](../docs/HTTP_STANDARD_V1.md).
+The `Orders.AspNetCore` sample runs an authenticated local SQLite transaction and exposes `POST /orders`. For tested protected endpoint examples, see [`HttpStandardTests.cs`](tests/IdempotencyKit.AspNetCore.Tests/HttpStandardTests.cs) and [HTTP integration guide](../docs/HTTP_STANDARD_V1.md).

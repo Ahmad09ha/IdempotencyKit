@@ -1,6 +1,6 @@
 # Architecture and design decisions (draft)
 
-> **Mixed implementation state:** Standard-mode HTTP adapters, PostgreSQL transaction executors, **EF Core 10 same-connection adapter** and **dedicated PostgreSQL transactional HTTP APIs** for ASP.NET Core and NestJS Express are implemented. Real NestJS server SIGKILL tests pass; SQL Server/SQLite adapters, universal transactional decorators, Fastify, equivalent ASP.NET process crash/failover certification and release packaging are future work. Shared transactional interfaces and SQL Server/SQLite design now exist; PostgreSQL implements the shared contract, but non-PostgreSQL adapters remain unimplemented. See [Transactional HTTP + EF Core](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) and [Provider Architecture](../spec/PROVIDER_ARCHITECTURE_V1.md).
+> **Implementation status:** both frameworks implement Standard-mode HTTP, validated scoped identity and provider-specific Transactional APIs. PostgreSQL, SQL Server 2022 and single-host local SQLite have transactional HTTP and .NET EF Core 10 adapters. Fastify, universal transactional decorators, Azure SQL failover and stable package publication are not supported. See [provider architecture](../spec/PROVIDER_ARCHITECTURE_V1.md), [verification evidence](VERIFICATION.md) and [release process](RELEASING.md).
 
 ## Goals
 
@@ -22,7 +22,7 @@ No magic exactly-once operations across independent databases, payment providers
                              |
        +---------------------+---------------------+
        |                                           |
- ASP.NET Core filter                         NestJS interceptor
+ ASP.NET Core middleware                         NestJS interceptor
        |                                           |
  .NET IdempotencyEngine                   TS IdempotencyEngine
        |                                           |
@@ -30,7 +30,7 @@ No magic exactly-once operations across independent databases, payment providers
                              |
                  Atomic IdempotencyStore
                              |
-              PostgreSQL (initial adapter)
+              PostgreSQL / SQL Server / SQLite
                              |
              +---------------+---------------+
              |                               |
@@ -70,7 +70,7 @@ Transactional integration is **not** just a generic call to `Complete` on an unr
 | `created_at_utc` / `completed_at_utc` / `expires_at_utc` | Auditing and retention |
 | `last_error_code` | Bounded diagnostics; no sensitive exception dumps |
 
-Exact SQL schema, indices and migration ownership remain open design decisions. Unique constraints and database transaction isolation must be proved against real PostgreSQL, not only mocks/in-memory stores.
+Exact checked-in schemas are under [spec/sql](../spec/sql); provider migrations are the application operator’s responsibility. Unique constraints and database transaction isolation must be proved against real PostgreSQL, not only mocks/in-memory stores.
 
 ## Standard mode state machine
 

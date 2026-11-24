@@ -5,5 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
     <ProjectReference Include="../../src/IdempotencyKit.AspNetCore/IdempotencyKit.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/IdempotencyKit.Sqlite/IdempotencyKit.Sqlite.csproj" />
+    <ProjectReference Include="../../src/IdempotencyKit.AspNetCore.Sqlite/IdempotencyKit.AspNetCore.Sqlite.csproj" />
   </ItemGroup>
 </Project>

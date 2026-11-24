@@ -1,6 +1,6 @@
 {
   "name": "@idempotencykit/nestjs-sqlite",
-  "version": "0.0.0",
+  "version": "0.1.0-preview.1",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -18,9 +18,10 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@idempotencykit/core": "0.0.0",
-    "@idempotencykit/nestjs": "0.0.0",
-    "@idempotencykit/sqlite": "0.0.0"
+    "@idempotencykit/core": "0.1.0-preview.1",
+    "@idempotencykit/nestjs": "0.1.0-preview.1",
+    "@idempotencykit/sqlite": "0.1.0-preview.1",
+    "@types/node": "^24.0.0"
   },
   "peerDependencies": {
     "@nestjs/common": "^12.0.0",
@@ -28,5 +29,16 @@
   },
   "engines": {
     "node": ">=24.0.0"
+  },
+  "description": "Explicit transactional HTTP idempotency for NestJS Express and local-file SQLite.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",
+    "directory": "typescript/packages/nestjs-sqlite"
+  },
+  "homepage": "https://github.com/Ahmad09ha/IdempotencyKit#readme",
+  "bugs": {
+    "url": "https://github.com/Ahmad09ha/IdempotencyKit/issues"
   }
 }

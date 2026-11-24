@@ -3,13 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@idempotencykit/core": "0.0.0",
-    "@idempotencykit/nestjs": "0.0.0",
+    "@idempotencykit/nestjs": "0.1.0-preview.1",
+    "@idempotencykit/nestjs-sqlite": "0.1.0-preview.1",
+    "@idempotencykit/sqlite": "0.1.0-preview.1",
     "@nestjs/common": "^12.6.0",
     "@nestjs/core": "^12.6.0",
     "@nestjs/platform-express": "^12.6.0",

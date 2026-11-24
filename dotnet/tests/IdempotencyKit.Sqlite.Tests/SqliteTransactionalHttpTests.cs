@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -84,6 +86,8 @@ public sealed class SqliteTransactionalHttpTests(FileSqliteFixture fixture)
                         "Test", _ => { });
                 services.AddAuthorization();
                 services.AddSingleton(counters);
+                services.AddSingleton<IIdempotencyStore>(new SqliteIdempotencyStore(
+                    fixture.DatabasePath, busyTimeoutSeconds));
                 services.AddSqliteTransactionalIdempotency(
                     fixture.DatabasePath, busyTimeoutSeconds);
                 services.AddIdempotencyKit(options =>
@@ -100,8 +104,21 @@ public sealed class SqliteTransactionalHttpTests(FileSqliteFixture fixture)
                 app.UseRouting();
                 app.UseAuthentication();
                 app.UseAuthorization();
+                app.UseIdempotencyKit();
                 app.UseEndpoints(endpoints =>
                 {
+                    endpoints.MapPost("/standard-telemetry/write",
+                        (SqliteHttpCounters counts) =>
+                        {
+                            counts.Create();
+                            return Results.Json(new { called = counts.Created }, statusCode: 201);
+                        })
+                        .RequireAuthorization().WithIdempotency("standard.telemetry.write");
+                    endpoints.MapPost("/standard-telemetry/fail", (HttpContext _) =>
+                        Task.FromException(new InvalidOperationException(
+                            "Domain failure: must not be part of telemetry.")))
+                        .RequireAuthorization().WithIdempotency("standard.telemetry.fail");
+
                     endpoints.MapSqliteTransactionalPost(
                         "/sqlite/orders", CreateOperation,
                         async (http, bodyJson, connection, transaction, ct) =>
@@ -212,6 +229,124 @@ public sealed class SqliteTransactionalHttpTests(FileSqliteFixture fixture)
             "/sqlite/orders", key, """{"productId":50,"quantity":3}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, changed.StatusCode);
         Assert.Equal(1L, await CountOrdersAsync("alice:" + key));
+    }
+
+    [Fact]
+    public async Task TransactionTelemetryIsBoundedAndDoesNotChangeReplay()
+    {
+        await EnsureOrdersAsync();
+        var events = new ConcurrentQueue<(long Count, KeyValuePair<string, object?>[] Tags)>();
+        var durations = new ConcurrentQueue<double>();
+        using var observer = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == IdempotencyTelemetry.MeterName)
+                    listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        observer.SetMeasurementEventCallback<long>((_, amount, tags, _) =>
+            events.Enqueue((amount, tags.ToArray())));
+        observer.SetMeasurementEventCallback<double>((_, duration, _, _) =>
+            durations.Enqueue(duration));
+        observer.Start();
+
+        var counts = new SqliteHttpCounters();
+        using var host = CreateServer(counts);
+        using var client = host.CreateClient();
+        var key = "private-telemetry-key-" + Guid.NewGuid().ToString("N");
+        const string principal = "private-principal";
+
+        using var first = await client.SendAsync(Post("/sqlite/orders", key, user: principal));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        using var replay = await client.SendAsync(Post("/sqlite/orders", key, user: principal));
+        Assert.Equal(HttpStatusCode.Created, replay.StatusCode);
+        Assert.Equal(await first.Content.ReadAsByteArrayAsync(),
+            await replay.Content.ReadAsByteArrayAsync());
+        using var mismatch = await client.SendAsync(Post(
+            "/sqlite/orders", key, """{"productId":50,"quantity":3}""", principal));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, mismatch.StatusCode);
+        using var forbidden = await client.SendAsync(Post(
+            "/sqlite/orders", key, user: principal, tenant: "revoked"));
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        using var failure = await client.SendAsync(Post("/sqlite/orders/fail", key, user: principal));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failure.StatusCode);
+        Assert.Equal(1, counts.Created);
+        Assert.Equal(1L, await CountOrdersAsync(principal + ":" + key));
+
+        var outcomes = events.Select(measurement =>
+        {
+            Assert.Equal(1L, measurement.Count);
+            Assert.Collection(measurement.Tags,
+                stage =>
+                {
+                    Assert.Equal("idempotency.stage", stage.Key);
+                    Assert.Equal("transactional.execute", stage.Value);
+                },
+                outcome => Assert.Equal("idempotency.outcome", outcome.Key));
+            return Assert.IsType<string>(measurement.Tags[1].Value);
+        });
+        Assert.Equal(new[] { "executed", "replayed", "fingerprint_mismatch", "error" }, outcomes);
+        Assert.Equal(4, durations.Count);
+        Assert.All(durations, value => Assert.True(double.IsFinite(value) && value >= 0));
+
+        // An exporter callback can throw synchronously; this must not alter
+        // an already committed transaction or turn its replay into a failure.
+        using var failing = new MeterListener
+        {
+            InstrumentPublished = observer.InstrumentPublished
+        };
+        failing.SetMeasurementEventCallback<long>((_, _, _, _) =>
+            throw new InvalidOperationException("Injected collector failure."));
+        failing.Start();
+
+        using var replayWithFailedCollector = await client.SendAsync(
+            Post("/sqlite/orders", key, user: principal));
+        Assert.Equal(HttpStatusCode.Created, replayWithFailedCollector.StatusCode);
+        Assert.Equal(1, counts.Created);
+    }
+
+    [Fact]
+    public async Task StandardTelemetrySeparatesClaimAndPersistence()
+    {
+        var observed = new ConcurrentQueue<(string Stage, string Outcome)>();
+        using var observer = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == IdempotencyTelemetry.MeterName &&
+                    instrument.Name == "idempotencykit.stage.count")
+                    listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        observer.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+            observed.Enqueue(((string)tags[0].Value!, (string)tags[1].Value!)));
+        observer.Start();
+
+        var counts = new SqliteHttpCounters();
+        using var host = CreateServer(counts);
+        using var client = host.CreateClient();
+        var key = "private-telemetry-key-" + Guid.NewGuid().ToString("N");
+        using var first = await client.SendAsync(Post("/standard-telemetry/write", key));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        using var replay = await client.SendAsync(Post("/standard-telemetry/write", key));
+        Assert.Equal(HttpStatusCode.Created, replay.StatusCode);
+        Assert.Equal(await first.Content.ReadAsByteArrayAsync(),
+            await replay.Content.ReadAsByteArrayAsync());
+        Assert.Equal(1, counts.Created);
+        using var failed = await client.SendAsync(Post("/standard-telemetry/fail", key));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+        using var uncertain = await client.SendAsync(Post("/standard-telemetry/fail", key));
+        Assert.Equal(HttpStatusCode.Conflict, uncertain.StatusCode);
+        Assert.Equal(new[]
+        {
+            ("standard.claim", "acquired"),
+            ("standard.execute", "completed"),
+            ("standard.claim", "replayed"),
+            ("standard.claim", "acquired"),
+            ("standard.execute", "unconfirmed"),
+            ("standard.claim", "uncertain")
+        }, observed);
     }
 
     [Fact]
