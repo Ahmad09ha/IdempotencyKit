@@ -343,4 +343,77 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
         Assert.Equal(0L, await CountAsync("idempotencykit_records", oldKey));
         Assert.Equal(1L, await CountAsync("idempotencykit_records", uncertainKey));
     }
+
+    [Fact]
+    public async Task DifferentKeysDoNotBlockOnOneAnothersApplicationLocks()
+    {
+        var heldKey = NewKey();
+        var otherKey = NewKey();
+        var executor = new SqlServerTransactionalExecutor(
+            fixture.ConnectionString, TimeSpan.FromMilliseconds(150));
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = executor.ExecuteAsync(heldKey, Fingerprint(20),
+            async (conn, tx, ct) =>
+            {
+                started.SetResult();
+                await release.Task.WaitAsync(ct);
+                return await InsertAsync(conn, tx, ct, heldKey, 20);
+            }, TimeSpan.FromHours(1));
+
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            var independent = await executor.ExecuteAsync(
+                otherKey, Fingerprint(21),
+                (conn, tx, ct) => InsertAsync(conn, tx, ct, otherKey, 21),
+                TimeSpan.FromHours(1));
+            Assert.Equal(TransactionalExecutionStatus.Executed, independent.Status);
+            Assert.Equal(1L,
+                await CountAsync("idempotencykit_sqlserver_orders_test", otherKey));
+        }
+        finally
+        {
+            release.SetResult();
+        }
+        Assert.Equal(TransactionalExecutionStatus.Executed, (await held).Status);
+        Assert.Equal(1L, await CountAsync("idempotencykit_sqlserver_orders_test", heldKey));
+    }
+
+    [Fact]
+    public async Task KillingSqlServerSessionBeforeCommitRollsBackClaimAndOrder()
+    {
+        string key = NewKey(), hash = Fingerprint(22);
+        var executor = new SqlServerTransactionalExecutor(fixture.ConnectionString);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => executor.ExecuteAsync(
+            key, hash, async (conn, tx, ct) =>
+            {
+                await InsertAsync(conn, tx, ct, key, 22);
+                await using var spidCommand = new SqlCommand("SELECT @@SPID", conn, tx);
+                var spid = (int)(await spidCommand.ExecuteScalarAsync(ct))!;
+
+                // Independent admin connection kills this session while its
+                // domain INSERT + idempotency reservation are uncommitted.
+                // The command text contains only a trusted integer from SQL Server.
+                await using var killer = new SqlConnection(fixture.ConnectionString);
+                await killer.OpenAsync(ct);
+                await using var kill = new SqlCommand("KILL " + spid, killer);
+                await kill.ExecuteNonQueryAsync(ct);
+
+                // Any further use of the dead transaction must fail.
+                return Response(1, 22);
+            }, TimeSpan.FromHours(1)));
+
+        Assert.Equal(0L, await CountAsync("idempotencykit_sqlserver_orders_test", key));
+        Assert.Equal(0L, await CountAsync("idempotencykit_records", key));
+
+        var retry = await executor.ExecuteAsync(
+            key, hash, (conn, tx, ct) => InsertAsync(conn, tx, ct, key, 22),
+            TimeSpan.FromHours(1));
+        Assert.Equal(TransactionalExecutionStatus.Executed, retry.Status);
+        Assert.Equal(1L, await CountAsync("idempotencykit_sqlserver_orders_test", key));
+        Assert.Equal(1L, await CountAsync("idempotencykit_records", key));
+    }
+
 }
