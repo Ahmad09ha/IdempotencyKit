@@ -1,6 +1,6 @@
 # Database provider rollout plan
 
-**Planning baseline:** PostgreSQL Standard + Transactional mode, EF Core Npgsql, ASP.NET Core and NestJS Express HTTP integration are already implemented and tested. Shared provider-neutral transactional interfaces are now being added. **SQL Server Standard and Transactional core adapters are now implemented and tested against SQL Server 2022; SQL Server-specific EF Core/HTTP adapters and all SQLite adapters remain unimplemented.**
+**Planning baseline:** PostgreSQL Standard + Transactional mode, EF Core Npgsql, ASP.NET Core and NestJS Express HTTP integration are already implemented and tested. Shared provider-neutral transactional interfaces are now being added. **SQL Server Standard and Transactional core adapters are now implemented and tested against SQL Server 2022; SQL Server EF Core 10, ASP.NET Core and NestJS Express Transactional HTTP are also implemented and tested. SQLite adapters remain unimplemented.**
 
 ## Recommended sequence
 
@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | P0 — contracts | Generic .NET + TypeScript transactional interfaces, PostgreSQL compatibility, cross-language result fixture, architecture | Both existing PostgreSQL CI suites pass unchanged; new interface tests pass | Current PR |
 | P1 — SQL Server core | Durable Standard-mode claim/store + explicit SQL Server transaction executor (.NET + TypeScript) | Real SQL Server 2022 CI, 100 concurrent same-key, mismatch, replay, rollback and lock-timeout tests | **Implemented; CI verified** |
-| P2 — SQL Server HTTP/EF | ASP.NET Core/Postgres-specific mapping equivalent, EF Core SQL Server integration, NestJS Express service | Real authenticated HTTP request + replay, SQL Server EF shared transaction, process crash before/after COMMIT | Planned |
+| P2 — SQL Server HTTP/EF | Explicit ASP.NET Core endpoint mapping, EF Core SQL Server integration, NestJS Express service | Real authenticated HTTP request/replay, SQL Server EF shared transaction, Node HTTP process SIGKILL before/after COMMIT | **Implemented; CI verified** |
 | P3 — SQLite core | File-backed Standard-mode + transactional executor, explicit single-host deployment restrictions | Real **on-disk** SQLite tests for SQLITE_BUSY, WAL, multi-connection, replay, rollback and SIGKILL | Planned |
 | P4 — SQLite HTTP/EF | EF Core SQLite and explicit ASP.NET Core / NestJS provider adapters where driver supports safe async lifetime | Same-key retry with exact response bytes after process restart, documented bounded writer contention | Planned |
 | P5 — more engines | MySQL/MariaDB research, optional Redis Standard mode | Separate database-specific guarantees and verified CI evidence | Deferred |
@@ -24,8 +24,8 @@ IdempotencyKit.Postgres                         # implemented
 IdempotencyKit.EntityFrameworkCore.Postgres     # implemented
 IdempotencyKit.AspNetCore.Postgres               # implemented
 IdempotencyKit.SqlServer                        # implemented core
-IdempotencyKit.EntityFrameworkCore.SqlServer    # planned
-IdempotencyKit.AspNetCore.SqlServer              # planned
+IdempotencyKit.EntityFrameworkCore.SqlServer    # implemented
+IdempotencyKit.AspNetCore.SqlServer              # implemented
 IdempotencyKit.Sqlite                           # planned
 IdempotencyKit.EntityFrameworkCore.Sqlite       # planned
 IdempotencyKit.AspNetCore.Sqlite                 # planned
@@ -39,7 +39,7 @@ TypeScript:
 @idempotencykit/nestjs                # Standard-mode core
 @idempotencykit/nestjs-postgres       # implemented
 @idempotencykit/sqlserver             # implemented core
-@idempotencykit/nestjs-sqlserver      # planned
+@idempotencykit/nestjs-sqlserver      # implemented (Express)
 @idempotencykit/sqlite                # planned (driver selection first)
 @idempotencykit/nestjs-sqlite         # planned (depending on driver support)
 ~~~
@@ -55,8 +55,9 @@ TypeScript:
 - [x] Implement `IIdempotencyStore` / `IdempotencyStore` with owner fencing, uncertain state and bounded cleanup.
 - [x] Implement `ITransactionalIdempotencyExecutor<SqlConnection, SqlTransaction>` and the TypeScript `mssql.Transaction` executor.
 - [x] Run real SQL Server 2022 Standard/Transactional tests with 100 same-key contenders and a .NET server-session-kill **before COMMIT** test.
-- [ ] Run full API-process SIGKILL after COMMIT before HTTP response; EF Core/HTTP integration and failover certification remain separate.
-- [ ] Add EF Core SQL Server and explicit ASP.NET Core/NestJS provider-specific HTTP adapters in P2.
+- [x] Run complete NestJS Express SQL Server HTTP server SIGKILL before and after COMMIT, then retry the same key through a surviving host.
+- [ ] Verify equivalent ASP.NET Core HTTP server-process SIGKILL and Azure SQL failover configurations.
+- [x] Add SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express provider-specific HTTP adapters in P2. See [SQL Server EF Core + HTTP](SQLSERVER_EFCORE_HTTP_V1.md).
 - [x] Add a native SQL Server migration and [SQL Server Core v1](../spec/SQLSERVER_STORE_V1.md) setup, permissions, retention, locking and recovery guide; final CI evidence is tracked in `docs/VERIFICATION.md`.
 
 ## P3 — SQLite implementation checklist

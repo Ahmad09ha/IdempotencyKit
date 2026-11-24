@@ -66,6 +66,24 @@ public sealed class SqlServerFixture : IAsyncLifetime
                  quantity int NOT NULL)')
             """, conn))
             await orders.ExecuteNonQueryAsync();
+
+        await using (var efOrders = new SqlCommand("""
+            IF OBJECT_ID(N'dbo.idempotencykit_sqlserver_ef_orders_test', N'U') IS NULL
+            EXEC(N'CREATE TABLE dbo.idempotencykit_sqlserver_ef_orders_test
+                (id bigint IDENTITY(1,1) PRIMARY KEY,
+                 scope_key_hash nvarchar(67) NOT NULL,
+                 quantity int NOT NULL)')
+            """, conn))
+            await efOrders.ExecuteNonQueryAsync();
+
+        await using (var httpOrders = new SqlCommand("""
+            IF OBJECT_ID(N'dbo.idempotencykit_sqlserver_http_orders_test', N'U') IS NULL
+            EXEC(N'CREATE TABLE dbo.idempotencykit_sqlserver_http_orders_test
+                (id bigint IDENTITY(1,1) PRIMARY KEY,
+                 scope_key_hash nvarchar(150) NOT NULL,
+                 quantity int NOT NULL)')
+            """, conn))
+            await httpOrders.ExecuteNonQueryAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

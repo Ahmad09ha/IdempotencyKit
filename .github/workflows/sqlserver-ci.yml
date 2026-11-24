@@ -61,4 +61,4 @@ jobs:
       - name: Build
         run: npm run build
       - name: Real SQL Server integration tests
-        run: node --test tests/sqlserver-v1.test.mjs
+        run: node --test --test-concurrency=1 tests/sqlserver*.test.mjs

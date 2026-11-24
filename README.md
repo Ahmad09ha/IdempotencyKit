@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: Standard-mode HTTP, PostgreSQL Transactional Mode, EF Core 10 shared-transaction support, and dedicated transaction-aware HTTP APIs are implemented.** ASP.NET Core and NestJS Express have explicit PostgreSQL transactional routes with real integration tests. **Provider-neutral .NET/TypeScript transactional contracts and a shared outcome fixture are now implemented; PostgreSQL conforms to them.** **SQL Server 2022 Standard/Transactional core adapters are now implemented for both .NET and TypeScript, with real SQL Server CI.** SQL Server EF Core/HTTP adapters, SQLite and other providers, universal transactional annotations, automated reconciliation, package publication, and production certification are **not** implemented. The Orders demo apps remain health-only.
+> **Project status: Standard-mode HTTP, PostgreSQL Transactional Mode, EF Core 10 shared-transaction support, and dedicated transaction-aware HTTP APIs are implemented.** ASP.NET Core and NestJS Express have explicit PostgreSQL transactional routes with real integration tests. **Provider-neutral .NET/TypeScript transactional contracts and a shared outcome fixture are now implemented; PostgreSQL conforms to them.** **SQL Server 2022 Standard/Transactional core adapters are now implemented for both .NET and TypeScript, with real SQL Server CI.** **SQL Server EF Core 10, authenticated ASP.NET Core transactional HTTP and NestJS Express transactional HTTP adapters are also implemented and real-database tested.** SQLite and other providers, universal transactional annotations, automated reconciliation, package publication, and production certification are **not** implemented. The Orders demo apps remain health-only.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -37,7 +37,9 @@ All current packages are **source workspaces, not published NuGet/npm artifacts*
 | `IdempotencyKit.Postgres` / `@idempotencykit/postgres` | Implemented | PostgreSQL Standard-mode store and Transactional-mode executor |
 | `IdempotencyKit.EntityFrameworkCore.Postgres` | Implemented | EF Core 10 with one shared PostgreSQL transaction |
 | `IdempotencyKit.AspNetCore.Postgres` / `@idempotencykit/nestjs-postgres` | Implemented | Explicit PostgreSQL transactional HTTP endpoints |
-| `IdempotencyKit.SqlServer` / `@idempotencykit/sqlserver` | **Implemented core** | SQL Server 2022 Standard-mode store and same-transaction executor; EF Core/HTTP integrations planned |
+| `IdempotencyKit.SqlServer` / `@idempotencykit/sqlserver` | **Implemented** | SQL Server 2022 Standard-mode store and same-transaction executor |
+| `IdempotencyKit.EntityFrameworkCore.SqlServer` | **Implemented** | EF Core 10 shared SQL Server connection + transaction bridge |
+| `IdempotencyKit.AspNetCore.SqlServer` / `@idempotencykit/nestjs-sqlserver` | **Implemented** | Explicit authenticated transactional JSON endpoints for SQL Server |
 | SQLite package family | **Planned** | Local-file-backed stores, single-writer transactional callbacks and restricted deployment topology |
 
 The shared contract is **behavioral**, not shared database SQL. Different engines need different locking, transaction APIs, migrations and failure tests. See [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md) and [Database Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md).
@@ -246,7 +248,7 @@ Read [HTTP Standard Mode v1](docs/HTTP_STANDARD_V1.md) for actual application se
 - **Cross-language fixture:** [`transactional-provider-v1.json`](spec/fixtures/transactional-provider-v1.json) verifies identical outcome mapping. Real PostgreSQL tests verify the interface still commits business writes and replay results atomically.
 - **What is not shared:** SQL syntax, lock acquisition, transaction ownership internals, schema migrations and topology limits.
 
-See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **SQL Server core is implemented; SQLite and SQL Server EF Core/HTTP layers remain planned.**
+See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **SQL Server core, EF Core and transactional HTTP layers are implemented; SQLite remains planned.**
 
 ## Implemented: SQL Server Standard + Transactional core
 
@@ -257,7 +259,7 @@ See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **SQL Serv
 - **Safety:** completed-result replay, mismatch rejection, Standard-mode owner/lease fencing, uncertain state, bounded JSON responses and one-transaction SQL business writes.
 - **Tests:** real SQL Server 2022 CI for both languages, including 100 concurrent same-key transaction attempts. See [SQL Server Store v1](spec/SQLSERVER_STORE_V1.md) and [CI results](https://github.com/Ahmad09ha/IdempotencyKit/actions/workflows/sqlserver-ci.yml).
 
-**Not yet included:** SQL Server-specific EF Core and ASP.NET Core/NestJS HTTP adapters, Azure SQL CI certification, database failover and production package publication. Existing PostgreSQL integrations are unaffected.
+**Now included in separate provider-specific packages:** `SqlServerEfCoreTransactionalExecutor<TContext>`, ASP.NET Core `MapSqlServerTransactionalPost`, NestJS `SqlServerTransactionalHttpModule` / `SqlServerTransactionalHttpService.handleExpress`. See [SQL Server EF Core + HTTP v1](docs/SQLSERVER_EFCORE_HTTP_V1.md). **Still excluded:** Azure SQL failover certification, ASP.NET full process-SIGKILL lab, stable package publication and external-effect exactly-once claims. PostgreSQL integrations are unaffected.
 
 ## Implemented: PostgreSQL Transactional Mode v1
 
@@ -270,7 +272,7 @@ Both implementations now provide an **explicit atomic database operation API**, 
 
 **Transactional HTTP and EF Core are now available through explicit APIs:** ASP.NET Core `MapTransactionalPost`, NestJS `PostgresTransactionalHttpService.handleExpress`, and .NET `PostgresEfCoreTransactionalExecutor<TContext>`. Standard-mode `[Idempotent]` / `@Idempotent()` annotations **must not** wrap the same transactional operation.
 
-Read [Transactional Mode v1](spec/TRANSACTIONAL_MODE_V1.md) and [Transactional HTTP + EF Core v1](docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) for setup, recovery requirements, and limitations. This is a **PostgreSQL-only, same-database** atomicity guarantee, not "exactly once" for payments or other external effects.
+Read [Transactional Mode v1](spec/TRANSACTIONAL_MODE_V1.md) and [Transactional HTTP + EF Core v1](docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) for setup, recovery requirements, and limitations. Both PostgreSQL and SQL Server now have verified **same-database** transactional implementations; neither guarantees "exactly once" for payments or other external effects.
 
 ## Development roadmap
 
@@ -295,7 +297,7 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - The first target is JSON REST writes; streaming, SSE, large file bodies, and manual/raw response writing are out of initial scope.
 - Transactional mode covers supported business mutations executed in the **same durable database transaction**.
 - Key deduplication is not a substitute for domain-level uniqueness, authentication, authorization, or payment-provider idempotency keys.
-- Redis support, non-PostgreSQL ORM adapters, response encryption, full performance benchmarks and a production security audit remain future work. EF Core/Npgsql and PostgreSQL integration tests are already implemented.
+- Redis, SQLite/non-SQLServer/non-PostgreSQL ORM adapters, response encryption, full performance benchmarks and a production security audit remain future work. EF Core 10 and transactional HTTP tests run on both PostgreSQL and SQL Server.
 - A license has **not yet been selected**. Public visibility does not by itself grant open-source reuse rights.
 
 ## Design references
@@ -306,4 +308,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** build **EF Core SQL Server shared-transaction support and SQL Server-specific ASP.NET Core/NestJS transactional HTTP integrations**. After that, SQLite follows with an explicitly local-file/single-writer support policy. See [Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md). Full .NET HTTP process-crash validation, error parity, reconciliation and package publication remain separate hardening goals.
+**Next milestone:** design and implement **SQLite core idempotency storage/transaction support** with on-disk durability, WAL/busy handling and clear single-writer deployment limits. Then add SQLite EF Core/HTTP integrations with their own real-database tests. See [Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md). Full .NET HTTP process-crash validation, error parity, reconciliation and package publication remain separate hardening goals.
