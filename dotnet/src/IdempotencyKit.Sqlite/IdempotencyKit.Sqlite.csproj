@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>File-backed SQLite Standard and Transactional database core.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.4" />
+    <ProjectReference Include="../IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
+    <EmbeddedResource Include="../../../spec/sql/sqlite/001_idempotencykit_records.sql" LogicalName="IdempotencyKit.Sqlite.Migration001" />
+  </ItemGroup>
+</Project>

@@ -5,6 +5,51 @@ This file records **observed test results**, separately from planned guarantees.
 
 
 
+## 2026-11-24 — SQLite on-disk Standard + Transactional core (P3)
+
+**Verified implementation commit:** `f90d44f4dac2a482cc0ddfd4c0628b06d8f629c2` on `feature/sqlite-core-v1`.
+
+- [SQLite File-backed CI run 45365414949](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45365414949): **10 .NET + 14 Node = 24 passing real on-disk SQLite tests**, 0 failed, 0 skipped.
+- [PostgreSQL regression CI run 45365414955](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45365414955): .NET **40 passed**, Node **52 passed** (existing 38 PostgreSQL/core + the 14 new file-backed SQLite tests), 0 failed. SQL Server-only Node tests are intentionally skipped in this PostgreSQL-only job (19 skips), but all run in SQL Server CI.
+- [SQL Server 2022 regression run 45365414962](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45365414962): **22 .NET and 19 Node passed**, 0 failed, 0 skipped.
+
+| SQLite real-file tests | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| .NET 10 / Microsoft.Data.Sqlite 10.0.4 | **10** | 0 | 0 |
+| Node 24 / built-in node:sqlite | **14** | 0 | 0 |
+| **SQLite total** | **24** | **0** | **0** |
+
+### SQLite behavior verified
+
+- SQLite migration and initialization against **actual isolated temporary filesystem files**, with `journal_mode=WAL` and `synchronous=FULL`, not `:memory:` databases.
+- Standard-mode new claims, owner-token fencing, rejected false owners, lease extension, 2xx JSON completion and persisted byte-for-byte replay from a new physical connection/store.
+- Same scoped key with changed fingerprint => mismatch and no second business callback.
+- Expired Standard-mode processing claims become `Uncertain`, never automatically reacquired.
+- Corrupted processing records with missing/null lease timestamps fail closed as `Uncertain` in both .NET and Node; no domain callback is allowed.
+- SQLite Transactional mode uses `BEGIN IMMEDIATE` and the **provided SqliteConnection/SqliteTransaction or restricted Node statement session** for both business row and replay response before a single COMMIT.
+- Handler failure or unsafe response headers after the business INSERT => **rollback both** the domain row and provisional claim, allowing a genuine same-key retry of a rolled-back transaction.
+- **100 concurrent same-key** attempts in both ecosystems create **one** committed domain row/result. Node serializes its own local same-file operations and .NET records any thrown SQLITE_BUSY storage errors separately from idempotency outcomes.
+- A separate Node process holds a transaction writing an **unrelated row/key**: the second connection gets `SQLITE_BUSY` as a storage error, **never** a spurious `InProgress`. .NET separately verifies this file-wide writer contention.
+- Bounded retention cleanup deletes only expired **completed** results, preserving uncertain rows.
+- An already-completed DB record tampered with a syntactically valid but unsafe `Set-Cookie` header fails closed at replay time.
+- Node transactional session rejects manual COMMIT and disguised leading SQL comment/semicolon variants, preventing business callback from bypassing validation and the executor-owned atomic COMMIT.
+- The Node inline SQLite migration text is checked for **exact normalized DDL parity** with the published `spec/sql/sqlite/001_idempotencykit_records.sql` migration. The SQLite source package now explicitly requires Node 24+.
+- **Node SIGKILL before COMMIT:** independent worker process is killed while business row and claim are uncommitted; both disappear, then a same-key retry commits once.
+- **Node SIGKILL after COMMIT but before caller acknowledgement:** independent worker is killed after COMMIT; same-key retry from another executor replays saved bytes without another SQL INSERT.
+
+### Deliberate limits / not verified
+
+- SQLite is supported only for **one host with a local file**; no NFS/SMB network WAL, multi-machine replicas, multi-region deduplication or shared distributed idempotency.
+- SQLite **EF Core** and provider-specific ASP.NET Core/NestJS HTTP routes are not implemented in P3 (planned P4). An internal same-database callback is not automatically an HTTP API.
+- Node SQLite uses synchronous `DatabaseSync` internally; a process-local queue prevents **this package's** same-file operations from blocking each other's async callbacks, but unrelated programs/processes are governed by SQLite's global file lock and may fail storage-busy. Avoid long async external work inside open transactions.
+- .NET process-level SIGKILL **before/after COMMIT** is not tested yet; the process-crash suite is Node only. Complete SQLite online backup/restore, checkpoint, disk-full and file-permission fault injection are also pending.
+- .NET and Node are run in **separate CI jobs** with their own files, so simultaneous mixed-language access to one SQLite file is not yet explicitly tested. The schema and v1 identity/fingerprint contracts are shared, but cross-process parity in one run should be verified before making that stronger claim.
+- No published NuGet/npm packages, security/performance certification, SQLite network-failover guarantees, automatic external-effect exactly-once or arbitrary reconciliation guarantees.
+
+**Result:** SQLite **file-backed database-core** v1 implements a conservative single-host, single-writer same-database idempotency contract with real-database crash and contention tests, without claiming full framework HTTP coverage or broader distributed durability.
+
+See [SQLite Store v1](SQLITE_STORE_V1.md) and [Database Provider Roadmap](DATABASE_PROVIDER_ROADMAP.md).
+
 ## 2026-11-24 — SQL Server EF Core 10 + transactional HTTP integrations (P2)
 
 **Verified source commit:** `f35d0ba14cfe410ac1f56501a432de342ff798d9` on `feature/sqlserver-efcore-http-v1`.  

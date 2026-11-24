@@ -1,0 +1,40 @@
+name: SQLite File-backed Integration CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  sqlite-dotnet:
+    name: .NET 10 + real file-backed SQLite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore dotnet/tests/IdempotencyKit.Sqlite.Tests/IdempotencyKit.Sqlite.Tests.csproj
+      - name: Build
+        run: dotnet build dotnet/tests/IdempotencyKit.Sqlite.Tests/IdempotencyKit.Sqlite.Tests.csproj --configuration Release --no-restore
+      - name: Real on-disk SQLite tests
+        run: dotnet test dotnet/tests/IdempotencyKit.Sqlite.Tests/IdempotencyKit.Sqlite.Tests.csproj --configuration Release --no-build
+
+  sqlite-node:
+    name: Node 24 + real file-backed SQLite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Real on-disk SQLite tests
+        run: node --test --test-concurrency=1 tests/sqlite*.test.mjs
