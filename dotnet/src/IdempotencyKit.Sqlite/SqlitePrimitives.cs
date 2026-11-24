@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using IdempotencyKit.Core;
@@ -10,6 +11,14 @@ internal static class SqlitePrimitives
     internal const long MaxLeaseMs = 86_400_000;
     internal const long MaxRetentionMs = 365 * MaxLeaseMs;
     internal const string Now = "CAST(unixepoch('subsec') * 1000 AS INTEGER)";
+
+    // RFC 9110 section 5.5: reject field-value control characters (HTAB
+    // is permitted). Do not rely on a web server rejecting data after COMMIT.
+    private static bool HasInvalidFieldValue(string value) =>
+        value.Any(c => (c < ' ' && c != '\t') || c == '\u007f');
+
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     private static readonly HashSet<string> SafeHeaders =
         new(StringComparer.Ordinal) { "location", "etag", "content-language" };
 
@@ -99,12 +108,13 @@ internal static class SqlitePrimitives
             throw new ArgumentException("JSON response must be <= 256 KiB.");
         if (string.IsNullOrWhiteSpace(response.ContentType) ||
             response.ContentType.Length > 128 ||
-            response.ContentType.IndexOfAny(['\r','\n']) >= 0)
+            HasInvalidFieldValue(response.ContentType))
             throw new ArgumentException("Unsafe response content type.");
         var media = response.ContentType.Split(';')[0].Trim();
         if (!media.Equals("application/json", StringComparison.OrdinalIgnoreCase) &&
             !media.Equals("application/problem+json", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Only JSON response content types are supported.");
+        _ = StrictUtf8.GetCharCount(response.Body);
         using (JsonDocument.Parse(response.Body)) { }
         if (response.Headers is null)
             throw new ArgumentException("Response header map must not be null.");
@@ -116,7 +126,7 @@ internal static class SqlitePrimitives
             if (!SafeHeaders.Contains(name) || headers.ContainsKey(name))
                 throw new ArgumentException("Unsafe or duplicate replay header.");
             if (value is null || value.Length > 4096 ||
-                value.IndexOfAny(['\r', '\n']) >= 0)
+                HasInvalidFieldValue(value))
                 throw new ArgumentException("Unsafe replay header value.");
             headers.Add(name, value);
         }

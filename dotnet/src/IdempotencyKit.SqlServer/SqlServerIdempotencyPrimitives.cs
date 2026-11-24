@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using IdempotencyKit.Core;
@@ -12,6 +13,14 @@ namespace IdempotencyKit.SqlServer;
 /// </summary>
 internal static class SqlServerIdempotencyPrimitives
 {
+
+    // RFC 9110 section 5.5: reject field-value control characters (HTAB
+    // is permitted). Do not rely on a web server rejecting data after COMMIT.
+    private static bool HasInvalidFieldValue(string value) =>
+        value.Any(c => (c < ' ' && c != '\t') || c == '\u007f');
+
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     private static readonly HashSet<string> SafeHeaders =
         new(StringComparer.Ordinal) { "location", "etag", "content-language" };
 
@@ -86,7 +95,7 @@ internal static class SqlServerIdempotencyPrimitives
             throw new ArgumentException("Response body must be <= 256 KiB.");
         if (string.IsNullOrWhiteSpace(response.ContentType) ||
             response.ContentType.Length > 128 ||
-            response.ContentType.IndexOfAny(['\r', '\n']) >= 0)
+            HasInvalidFieldValue(response.ContentType))
             throw new ArgumentException("Unsafe response content type.");
         var type = response.ContentType.Split(';')[0].Trim();
         if (!type.Equals("application/json", StringComparison.OrdinalIgnoreCase) &&
@@ -95,6 +104,7 @@ internal static class SqlServerIdempotencyPrimitives
         if (response.Headers is null)
             throw new ArgumentException("Response headers cannot be null.");
 
+        _ = StrictUtf8.GetCharCount(response.Body);
         using (JsonDocument.Parse(response.Body))
         {
             // Validates complete JSON before storing or committing.
@@ -107,7 +117,7 @@ internal static class SqlServerIdempotencyPrimitives
             if (!SafeHeaders.Contains(name) || headers.ContainsKey(name))
                 throw new ArgumentException("Unsafe or duplicated response header.");
             if (value is null || value.Length > 4096 ||
-                value.IndexOfAny(['\r', '\n']) >= 0)
+                HasInvalidFieldValue(value))
                 throw new ArgumentException("Unsafe response header value.");
             headers.Add(name, value);
         }

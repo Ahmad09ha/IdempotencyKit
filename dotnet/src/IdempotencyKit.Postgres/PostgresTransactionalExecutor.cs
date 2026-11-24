@@ -145,12 +145,9 @@ public sealed class PostgresTransactionalExecutor
         // used to make the decision to run the business callback.
         var response = await operation(connection, transaction, cancellationToken);
 
-        // Shared PostgreSQL Standard-mode validator, plus strict JSON syntax.
+        // The same validator checks complete JSON, UTF-8 and HTTP field
+        // safety in both modes and on subsequent reads.
         var headersJson = PostgresIdempotencyStore.SerializeSafeHeaders(response);
-        using (var parsed = JsonDocument.Parse(response.Body))
-        {
-            // Successful parse confirms exactly one valid UTF-8 JSON value.
-        }
 
         const string completeSql = """
             UPDATE idempotencykit_records
@@ -264,9 +261,9 @@ public sealed class PostgresTransactionalExecutor
                         "Completed response headers are missing.");
                 return new TransactionalIdempotencyResult(
                     TransactionalIdempotencyStatus.Replayed,
-                    new StoredHttpResponse(
+                    PostgresIdempotencyStore.ValidateStoredResponse(new StoredHttpResponse(
                         reader.GetInt32(3), reader.GetString(4),
-                        reader.GetFieldValue<byte[]>(5), headers));
+                        reader.GetFieldValue<byte[]>(5), headers)));
             default:
                 throw new InvalidOperationException("Unknown idempotency record state.");
         }

@@ -322,8 +322,23 @@ public sealed class IdempotencyMiddleware(
     {
         private void EnsureWithinLimit(int bytes)
         {
-            if (Position + bytes > max)
+            if (bytes < 0 || Position > max - bytes)
                 throw new InvalidOperationException("Response exceeds 256 KiB replay limit.");
+        }
+
+        // MemoryStream exposes SetLength/WriteByte as well as Write; keep
+        // all growth paths bounded (the handler itself is trusted code).
+        public override void SetLength(long value)
+        {
+            if (value > max)
+                throw new InvalidOperationException("Response exceeds 256 KiB replay limit.");
+            base.SetLength(value);
+        }
+
+        public override void WriteByte(byte value)
+        {
+            EnsureWithinLimit(1);
+            base.WriteByte(value);
         }
 
         public override void Write(byte[] buffer, int offset, int count)

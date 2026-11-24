@@ -187,12 +187,13 @@ export function readResponse(row: ExistingRow): StoredHttpResponse {
   const headers: unknown = JSON.parse(row.response_headers);
   if (headers === null || typeof headers !== "object" || Array.isArray(headers))
     throw new Error("Invalid stored response header data.");
-  return {
+  const response = {
     statusCode: row.response_status,
     contentType: row.response_content_type,
     body: new Uint8Array(row.response_body),
     headers: headers as Record<string, string>,
   };
+  return { ...response, headers: validateResponse(response) };
 }
 
 function validateHash(value: string): void {
@@ -218,7 +219,7 @@ export function validateResponse(response: StoredHttpResponse): Record<string, s
   if (!(response.body instanceof Uint8Array) || response.body.byteLength > MAX_BODY_BYTES)
     throw new Error("Response body exceeds 256 KiB or is invalid.");
   if (typeof response.contentType !== "string" ||
-      response.contentType.length > 128 || /[\r\n]/.test(response.contentType) ||
+      response.contentType.length > 128 || /[\x00-\x08\x0a-\x1f\x7f]/.test(response.contentType) ||
       !["application/json", "application/problem+json"].includes(
         response.contentType.split(";")[0]!.trim().toLowerCase()))
     throw new Error("Only JSON responses can be stored.");
@@ -226,12 +227,14 @@ export function validateResponse(response: StoredHttpResponse): Record<string, s
       Array.isArray(response.headers))
     throw new Error("Response headers must be an object.");
 
+  // Validate stored and newly captured bytes identically, in both modes.
+  JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(response.body));
   const safe: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [original, value] of Object.entries(response.headers)) {
     const name = original.toLowerCase();
     if (!SAFE_HEADERS.has(name) || Object.hasOwn(safe, name))
       throw new Error("Unsafe or duplicate response header: " + original);
-    if (typeof value !== "string" || value.length > 4096 || /[\r\n]/.test(value))
+    if (typeof value !== "string" || value.length > 4096 || /[\x00-\x08\x0a-\x1f\x7f]/.test(value))
       throw new Error("Unsafe response header value.");
     safe[name] = value;
   }

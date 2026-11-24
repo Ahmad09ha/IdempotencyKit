@@ -1,6 +1,6 @@
-# Security and Operations Plan (draft)
+# Security and operations readiness
 
-> This remains a release-readiness checklist. Some controls are implemented in the Standard-mode PostgreSQL and HTTP adapters (scoped SHA-256 keys, auth ordering, bounded JSON replay, safe-header allowlists), but stronger transactional guarantees, standardized errors, full authorization review, crash testing and operational reconciliation are **not** complete. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md).
+> This is a release-readiness checklist, not a production security certification. See [Operations](OPERATIONS.md), [verification evidence](VERIFICATION.md), and [security/performance hardening lab](SECURITY_PERFORMANCE_LAB.md) for observed results and limitations.
 
 ## Security requirements
 
