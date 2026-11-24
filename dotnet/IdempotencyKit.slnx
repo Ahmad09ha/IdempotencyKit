@@ -6,6 +6,8 @@
     <Project Path="src/IdempotencyKit.Postgres/IdempotencyKit.Postgres.csproj" />
     <Project Path="src/IdempotencyKit.SqlServer/IdempotencyKit.SqlServer.csproj" />
     <Project Path="src/IdempotencyKit.Sqlite/IdempotencyKit.Sqlite.csproj" />
+    <Project Path="src/IdempotencyKit.EntityFrameworkCore.Sqlite/IdempotencyKit.EntityFrameworkCore.Sqlite.csproj" />
+    <Project Path="src/IdempotencyKit.AspNetCore.Sqlite/IdempotencyKit.AspNetCore.Sqlite.csproj" />
     <Project Path="src/IdempotencyKit.AspNetCore.SqlServer/IdempotencyKit.AspNetCore.SqlServer.csproj" />
     <Project Path="src/IdempotencyKit.EntityFrameworkCore.SqlServer/IdempotencyKit.EntityFrameworkCore.SqlServer.csproj" />
     <Project Path="src/IdempotencyKit.EntityFrameworkCore.Postgres/IdempotencyKit.EntityFrameworkCore.Postgres.csproj" />
