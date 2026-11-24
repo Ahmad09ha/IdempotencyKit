@@ -4,6 +4,43 @@ This file records **observed test results**, separately from planned guarantees.
 
 
 
+
+## 2026-11-24 — SQL Server EF Core 10 + transactional HTTP integrations (P2)
+
+**Verified source commit:** `f35d0ba14cfe410ac1f56501a432de342ff798d9` on `feature/sqlserver-efcore-http-v1`.  
+**Real SQL Server 2022 CI:** [run 45360495990](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45360495990): **22 .NET and 19 TypeScript tests passed, 0 failed, 0 skipped.**  
+**PostgreSQL regression CI:** [run 45360496137](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45360496137): .NET **40 passed** (9 core + 13 PostgreSQL + 5 EF Core + 13 ASP.NET Core) and TypeScript/NestJS **38 passed**. The PostgreSQL-only Node workflow discovers **19 SQL Server tests** but intentionally skips them due to no SQL Server connection; all 19 are executed separately in SQL Server CI.
+
+| SQL Server 2022 suite | Tests | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| .NET SQL Server core + EF Core 10 + ASP.NET Core HTTP | 22 | **22** | 0 | 0 |
+| Node/TypeScript SQL Server core + NestJS Express HTTP/crash | 19 | **19** | 0 | 0 |
+| **SQL Server total** | **41** | **41** | **0** | **0** |
+
+### New P2 verified behavior
+
+- **EF Core 10 shared transaction:** a new `SqlServerEfCoreTransactionalExecutor<TContext>` creates a fresh context on the **same exact SqlConnection** and enlists the executor's existing `SqlTransaction`. Domain `SaveChangesAsync` and completed idempotency response commit as **one SQL Server transaction**.
+- EF Core generated keys and saved JSON replay match, including a callback invoked only on first execution; a wrong-connection factory is rejected before business effects.
+- An exception **after EF Core SaveChangesAsync** rolls back the domain row and idempotency claim together; remaining tracked entities save before the single COMMIT.
+- **Twelve concurrent EF Core same-key requests** yield one committed business row.
+- **ASP.NET Core `MapSqlServerTransactionalPost`:** real authenticated TestServer endpoints accept raw JSON and return stored JSON byte-for-byte across **two separate HTTP host instances** sharing the same database. They preserve safe `Location` headers, reject 422 mismatch and 400 missing/invalid key, verify principal isolation, and authorize before both execution and replay.
+- ASP.NET Core business callback exception after an SQL INSERT rolls back both writes and returns 503, allowing a same-key retry; 12 simultaneous HTTP requests create one order; 409 in-progress response includes `Retry-After`.
+- **NestJS 12 Express `SqlServerTransactionalHttpService.handleExpress`:** rawBody JSON scope/fingerprint, guarded caller identity and optional fresh authorization before replay, 400 missing key, 403 permission denial, 422 mismatches, 409 in-progress, exact result replay, 12 concurrent HTTP requests, user/tenant scoping and business-error rollback.
+- **Live HTTP process crash before COMMIT (Node):** a separate NestJS Express server was killed with `SIGKILL` while its domain SQL and provisional claim remained uncommitted; SQL Server rolled both back and a same-key retry through the surviving HTTP host executed one domain INSERT.
+- **Live HTTP process crash after COMMIT but before HTTP response (Node):** the separate server was killed after SQL Server acknowledged COMMIT while the response was deliberately withheld; a same-key retry replayed the saved JSON without another business callback or INSERT.
+- All 21 previously verified SQL Server core tests remain included in the 41-test suite, including 100 same-key database concurrency, owner fencing, read-time unsafe replay rejection and backend-session kill before COMMIT.
+
+### Scope and release boundaries
+
+- **No equivalent full ASP.NET Core process-kill HTTP test** yet (the .NET tests use real SQL Server through TestServer, not a separately killed API process).
+- SQL Server CI uses **SQL Server 2022 Developer containers**, not Azure SQL Database tier/failover, geo-replication, failback or ambiguous network-COMMIT-ack tests.
+- The isolated .NET and TypeScript CI jobs each create their **own SQL Server instance**; cross-language workloads sharing the **same** server during one simultaneous test are not yet verified.
+- Authentication identities injected by the CI test guard are **test-only**. Apps must configure real JWT/session validation, current resource permissions, secret management and TLS certificate validation before deployment.
+- No Fastify adapter, SQL Server automatically transactional `@Idempotent()` or `[Idempotent]` annotation, full operational reconciliation, NuGet/npm registry publication or externally audited performance/security certification.
+- Single SQL Server transaction guarantees **neither universal exactly-once effects nor atomic payments, emails, queues or writes to another database**. The client must retry a potentially ambiguous COMMIT using the **same scoped idempotency key** against the authoritative primary.
+
+See [SQL Server EF Core + HTTP v1](SQLSERVER_EFCORE_HTTP_V1.md), [SQL Server Core v1](../spec/SQLSERVER_STORE_V1.md) and [Database Provider Roadmap](DATABASE_PROVIDER_ROADMAP.md).
+
 ## 2026-11-24 — SQL Server 2022 Standard and Transactional core (P1)
 
 **Verified source commit:** `b064965e5061246dc9ad4fac8e891f82b7c766a6` on `feature/sqlserver-core-v1`.  
