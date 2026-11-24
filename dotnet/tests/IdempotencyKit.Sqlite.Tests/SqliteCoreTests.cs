@@ -320,4 +320,43 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
         await Assert.ThrowsAnyAsync<Exception>(()=>
             store.TryClaimAsync(key,hash,TimeSpan.FromHours(1)));
     }
+
+    [Fact]
+    public async Task CorruptProcessingRecordWithMissingLeaseFailsClosedAsUncertain()
+    {
+        var store = new SqliteIdempotencyStore(fixture.DatabasePath);
+        var executor = new SqliteTransactionalExecutor(fixture.DatabasePath);
+        for (var n = 0; n < 2; n++)
+        {
+            var key = NewKey();
+            var hash = Fingerprint(30 + n);
+            var claimed = await store.TryClaimAsync(
+                key, hash, TimeSpan.FromMinutes(1));
+            Assert.Equal(IdempotencyClaimStatus.Acquired, claimed.Status);
+
+            await using (var conn = fixture.Connection())
+            {
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    UPDATE idempotencykit_records SET lease_expires_at=NULL
+                     WHERE scope_key_hash=@key
+                    """;
+                cmd.Parameters.AddWithValue("@key", key);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            if (n == 0)
+                Assert.Equal(IdempotencyClaimStatus.Uncertain,
+                    (await store.TryClaimAsync(key, hash,
+                        TimeSpan.FromMinutes(1))).Status);
+            else
+                Assert.Equal(TransactionalExecutionStatus.Uncertain,
+                    (await executor.ExecuteAsync(key, hash,
+                        (conn, tx, ct) => throw new Exception(
+                            "Corrupt processing record cannot run business SQL."),
+                        TimeSpan.FromMinutes(1))).Status);
+        }
+    }
+
 }
