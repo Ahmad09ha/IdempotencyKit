@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <ProjectReference Include="../fixtures/IdempotencyKit.Relational.CrashHost/IdempotencyKit.Relational.CrashHost.csproj" />
+    <None Include="../../../spec/sql/postgres/001_idempotencykit_records.sql" Link="migrations/postgres.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../spec/sql/sqlserver/001_idempotencykit_records.sql" Link="migrations/sqlserver.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
