@@ -237,3 +237,30 @@ integration("Cleanup deletes expired completed records without uncertain records
   assert.equal(await count("idempotencykit_records", completedKey), 0);
   assert.equal(await count("idempotencykit_records", uncertainKey), 1);
 });
+
+integration("different scoped keys have independent SQL Server application locks", async () => {
+  const heldKey = key(), otherKey = key();
+  const runner = new SqlServerTransactionalExecutor(pool, 150);
+  let started;
+  const acquired = new Promise(resolve => { started = resolve; });
+  let unblock;
+  const gate = new Promise(resolve => { unblock = resolve; });
+
+  const held = runner.execute(heldKey, fingerprint(20), async tx => {
+    started();
+    await gate;
+    return insertOrder(tx, heldKey, 20);
+  }, 86_400_000);
+  await acquired;
+  try {
+    const independent = await runner.execute(otherKey, fingerprint(21),
+      tx => insertOrder(tx, otherKey, 21), 86_400_000);
+    assert.equal(independent.status, "executed");
+    assert.equal(await count("idempotencykit_sqlserver_orders_test", otherKey), 1);
+  } finally {
+    unblock();
+  }
+  assert.equal((await held).status, "executed");
+  assert.equal(await count("idempotencykit_sqlserver_orders_test", heldKey), 1);
+});
+
