@@ -125,8 +125,11 @@ internal static class SqlServerIdempotencyPrimitives
         var headers = JsonSerializer.Deserialize<Dictionary<string, string>>(
             reader.GetString(headersOrdinal))
             ?? throw new InvalidOperationException("Invalid stored response headers.");
-        return new StoredHttpResponse(reader.GetInt32(statusOrdinal),
+        var stored = new StoredHttpResponse(reader.GetInt32(statusOrdinal),
             reader.GetString(contentOrdinal),
             reader.GetFieldValue<byte[]>(bodyOrdinal), headers);
+        // Even a corrupted/tampered row must not replay unsafe headers,
+        // invalid JSON or a non-2xx response to the HTTP layer.
+        return PrepareResponse(stored).Response;
     }
 }

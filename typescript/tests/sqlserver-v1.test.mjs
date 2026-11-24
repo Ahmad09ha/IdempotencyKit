@@ -256,11 +256,12 @@ integration("different scoped keys have independent SQL Server application locks
     const independent = await runner.execute(otherKey, fingerprint(21),
       tx => insertOrder(tx, otherKey, 21), 86_400_000);
     assert.equal(independent.status, "executed");
-    assert.equal(await count("idempotencykit_sqlserver_orders_test", otherKey), 1);
+    // Do not scan the unindexed domain table while another inserted row is
+    // still uncommitted; READ COMMITTED may wait for that unrelated row.
   } finally {
     unblock();
   }
   assert.equal((await held).status, "executed");
+  assert.equal(await count("idempotencykit_sqlserver_orders_test", otherKey), 1);
   assert.equal(await count("idempotencykit_sqlserver_orders_test", heldKey), 1);
 });
-

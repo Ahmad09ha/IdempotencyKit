@@ -115,10 +115,12 @@ export function readResponse(row: ExistingRow): StoredHttpResponse {
   const headers: unknown = JSON.parse(row.response_headers);
   if (!headers || typeof headers !== "object" || Array.isArray(headers))
     throw new Error("Invalid stored response header map.");
-  return {
+  const response = {
     statusCode: row.response_status!,
     contentType: row.response_content_type,
     body: new Uint8Array(row.response_body),
     headers: headers as Record<string, string>,
   };
+  // Fail closed for tampered/corrupt database rows at read time, too.
+  return prepareResponse(response).response;
 }
