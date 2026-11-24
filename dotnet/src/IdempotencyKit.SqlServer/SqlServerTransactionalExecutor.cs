@@ -65,13 +65,18 @@ public sealed class SqlServerTransactionalExecutor(
                     TransactionalExecutionStatus.InProgress);
             }
 
+            // The transaction-owned per-key application lock already
+            // serializes all IdempotencyKit writers of this key. Do NOT add
+            // HOLDLOCK/UPDLOCK for an absent row: SERIALIZABLE key-range
+            // locks can block inserts of unrelated scoped keys sharing a
+            // neighboring index gap. The unique PK is a second safeguard.
             const string readSql = """
                 SELECT request_fingerprint, state,
                        CAST(CASE WHEN lease_expires_at <= SYSUTCDATETIME()
                                  THEN 1 ELSE 0 END AS bit),
                        response_status, response_content_type, response_body,
                        response_headers
-                  FROM dbo.idempotencykit_records WITH (UPDLOCK, HOLDLOCK)
+                  FROM dbo.idempotencykit_records
                  WHERE scope_key_hash = @key
                 """;
             TransactionalExecutionResult? existing = null;
