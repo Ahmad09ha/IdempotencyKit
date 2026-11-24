@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: Standard-mode HTTP, PostgreSQL Transactional Mode, EF Core 10 shared-transaction support, and dedicated transaction-aware HTTP APIs are implemented.** ASP.NET Core and NestJS Express have explicit PostgreSQL transactional routes with real integration tests. **Provider-neutral .NET/TypeScript transactional contracts and a shared outcome fixture are now implemented; PostgreSQL conforms to them.** **SQL Server 2022 Standard/Transactional core adapters are now implemented for both .NET and TypeScript, with real SQL Server CI.** **SQL Server EF Core 10, authenticated ASP.NET Core transactional HTTP and NestJS Express transactional HTTP adapters are also implemented and real-database tested.** SQLite and other providers, universal transactional annotations, automated reconciliation, package publication, and production certification are **not** implemented. The Orders demo apps remain health-only.
+> **Project status: Standard-mode HTTP, PostgreSQL Transactional Mode, EF Core 10 shared-transaction support, and dedicated transaction-aware HTTP APIs are implemented.** ASP.NET Core and NestJS Express have explicit PostgreSQL transactional routes with real integration tests. **Provider-neutral .NET/TypeScript transactional contracts and a shared outcome fixture are now implemented; PostgreSQL conforms to them.** **SQL Server 2022 Standard/Transactional core adapters are now implemented for both .NET and TypeScript, with real SQL Server CI.** **SQL Server EF Core 10, authenticated ASP.NET Core transactional HTTP and NestJS Express transactional HTTP adapters are also implemented and real-database tested.** **SQLite Standard and Transactional database-core adapters are now implemented in .NET and Node 24, with real file-backed tests.** SQLite EF Core/HTTP and further providers, universal transactional annotations, automated reconciliation, publication, and production certification are **not** implemented. The Orders demo apps remain health-only.
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -40,7 +40,7 @@ All current packages are **source workspaces, not published NuGet/npm artifacts*
 | `IdempotencyKit.SqlServer` / `@idempotencykit/sqlserver` | **Implemented** | SQL Server 2022 Standard-mode store and same-transaction executor |
 | `IdempotencyKit.EntityFrameworkCore.SqlServer` | **Implemented** | EF Core 10 shared SQL Server connection + transaction bridge |
 | `IdempotencyKit.AspNetCore.SqlServer` / `@idempotencykit/nestjs-sqlserver` | **Implemented** | Explicit authenticated transactional JSON endpoints for SQL Server |
-| SQLite package family | **Planned** | Local-file-backed stores, single-writer transactional callbacks and restricted deployment topology |
+| `IdempotencyKit.Sqlite` / `@idempotencykit/sqlite` | **Implemented core** | Local on-disk WAL/FULL storage, Standard + Transactional callbacks; SQLite EF Core/HTTP planned |
 
 The shared contract is **behavioral**, not shared database SQL. Different engines need different locking, transaction APIs, migrations and failure tests. See [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md) and [Database Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md).
 
@@ -171,7 +171,7 @@ IdempotencyKit/
 └── .github/workflows/ # builds and PostgreSQL integration testing
 ~~~
 
-The SQL Server provider now has its own `spec/sql/sqlserver`, `.NET` and TypeScript package directories and a dedicated SQL Server CI workflow. SQLite will receive independent provider directories only after its implementation begins.
+The SQL Server provider now has its own `spec/sql/sqlserver`, `.NET` and TypeScript package directories and a dedicated SQL Server CI workflow. SQLite now has its own database-core packages, versioned SQL migration and dedicated file-backed CI workflow.
 
 ## Build and test the workspaces
 
@@ -248,7 +248,18 @@ Read [HTTP Standard Mode v1](docs/HTTP_STANDARD_V1.md) for actual application se
 - **Cross-language fixture:** [`transactional-provider-v1.json`](spec/fixtures/transactional-provider-v1.json) verifies identical outcome mapping. Real PostgreSQL tests verify the interface still commits business writes and replay results atomically.
 - **What is not shared:** SQL syntax, lock acquisition, transaction ownership internals, schema migrations and topology limits.
 
-See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **SQL Server core, EF Core and transactional HTTP layers are implemented; SQLite remains planned.**
+See the [Provider Architecture v1](spec/PROVIDER_ARCHITECTURE_V1.md). **SQL Server core/EF Core/HTTP and SQLite file-backed core are implemented; SQLite EF Core/HTTP is planned.**
+
+## Implemented: SQLite Standard + Transactional database core
+
+- **Schema and durability:** [SQLite v1 migration](spec/sql/sqlite/001_idempotencykit_records.sql), local on-disk WAL + synchronous FULL, explicit one-time initialization.
+- **.NET 10:** `IdempotencyKit.Sqlite` provides `SqliteIdempotencyStore` and `SqliteTransactionalExecutor` using the supplied `SqliteConnection` + `SqliteTransaction` for the same-database SQL and replay record COMMIT.
+- **Node 24:** `@idempotencykit/sqlite` uses built-in `node:sqlite`, a restricted statement session and an in-process per-file queue for async callbacks.
+- **Concurrency:** `BEGIN IMMEDIATE` reserves SQLite's **single writer for the whole file**. An unrelated `SQLITE_BUSY` or `SQLITE_LOCKED` is a **storage error**, not evidence of a matching in-progress key.
+- **Verification:** **22 passing real file-backed tests** (9 .NET + 13 Node), 100 concurrent same-key requests, conservative uncertain leases, replay, cleanup, rollback, and Node SIGKILL before and after COMMIT. [SQLite CI](https://github.com/Ahmad09ha/IdempotencyKit/actions/workflows/sqlite-ci.yml).
+- **Limits:** one local host, local file only; no network-mounted WAL, multi-host distributed claims, SQLite EF Core/HTTP yet, or atomic external payment/email effects.
+
+See [SQLite Store v1](docs/SQLITE_STORE_V1.md) for working APIs, migrations, backups and safe retry guidance.
 
 ## Implemented: SQL Server Standard + Transactional core
 
@@ -297,7 +308,7 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - The first target is JSON REST writes; streaming, SSE, large file bodies, and manual/raw response writing are out of initial scope.
 - Transactional mode covers supported business mutations executed in the **same durable database transaction**.
 - Key deduplication is not a substitute for domain-level uniqueness, authentication, authorization, or payment-provider idempotency keys.
-- Redis, SQLite/non-SQLServer/non-PostgreSQL ORM adapters, response encryption, full performance benchmarks and a production security audit remain future work. EF Core 10 and transactional HTTP tests run on both PostgreSQL and SQL Server.
+- Redis, SQLite EF Core/HTTP and other providers, response encryption, full performance benchmarks and a production security audit remain future work. EF Core 10 and transactional HTTP tests run on both PostgreSQL and SQL Server.
 - A license has **not yet been selected**. Public visibility does not by itself grant open-source reuse rights.
 
 ## Design references
@@ -308,4 +319,4 @@ A future .NET sample may demonstrate one transaction containing **order creation
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [ReliableFlow](https://github.com/Ahmad09ha/ReliableFlow)
 
-**Next milestone:** design and implement **SQLite core idempotency storage/transaction support** with on-disk durability, WAL/busy handling and clear single-writer deployment limits. Then add SQLite EF Core/HTTP integrations with their own real-database tests. See [Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md). Full .NET HTTP process-crash validation, error parity, reconciliation and package publication remain separate hardening goals.
+**Next milestone:** implement **SQLite EF Core 10 and explicit ASP.NET Core/NestJS HTTP integrations**, building on the verified file-backed SQLite core and respecting its single-writer restrictions. See [Provider Rollout](docs/DATABASE_PROVIDER_ROADMAP.md). Full .NET HTTP process-crash validation, error parity, reconciliation and package publication remain separate hardening goals.

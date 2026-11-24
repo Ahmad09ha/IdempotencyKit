@@ -21,7 +21,7 @@
 - [x] Verify the initial scaffold builds and tests in GitHub Actions (run 45134472942); revalidate new hashing code in the feature PR.
 - [ ] Generate and commit npm lockfile; migrate CI from npm install to npm ci.
 
-The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are now implemented and tested against real SQL Server 2022, including full NestJS HTTP-process SIGKILL before/after COMMIT. SQLite, universal annotations, publication and automated reconciliation remain future work.
+The core implements scoped fingerprints and the PostgreSQL adapters implement Standard-mode database coordination and persisted response data. Both frameworks now implement Standard-mode HTTP integration. An explicit PostgreSQL same-transaction callback now exists in both languages, with **EF Core 10/Npgsql support and explicit ASP.NET Core/NestJS transactional HTTP entry points**. SQL Server Standard + Transactional core adapters are now implemented in .NET and TypeScript, with a separate SQL Server 2022 test workflow. SQL Server EF Core 10 and explicit ASP.NET Core/NestJS Express transactional HTTP are now implemented and tested against real SQL Server 2022, including full NestJS HTTP-process SIGKILL before/after COMMIT. SQLite file-backed Standard/Transactional core is verified in .NET and Node 24. SQLite EF Core/HTTP, universal annotations, publication and automated reconciliation remain future work.
 
 ## Phase 1 — .NET Standard mode
 
@@ -66,7 +66,7 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 
 - [x] Define provider-neutral .NET/TypeScript transactional interfaces, keep Standard-mode store contracts, and implement PostgreSQL adapters against them.
 - [x] Document SQL Server 2022+/Azure SQL candidate lock/transaction semantics, migration and integration-test gates (not implemented).
-- [x] Document SQLite WAL, BEGIN IMMEDIATE, busy-timeout, file durability, single-host topology and test gates (not implemented).
+- [x] Document SQLite WAL, BEGIN IMMEDIATE, busy-timeout, file durability, single-host topology and real test gates.
 - [ ] Evaluate MySQL/MariaDB and other engines against the same failure matrix.
 - [ ] Add provider-specific migration versions, real-database stress tests and failure injection instead of assuming PostgreSQL SQL is portable.
 
@@ -84,6 +84,17 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 - [x] Test all three SQL Server integration APIs against real SQL Server 2022, including Node HTTP-process SIGKILL before and after COMMIT.
 - [ ] Add equivalent ASP.NET Core HTTP process SIGKILL before/after COMMIT lab, Azure SQL failover verification, and publication hardening.
 - [ ] Run Azure SQL-specific durability/failover and full HTTP process-crash suites before supporting those production claims.
+
+## SQLite core implementation (P3)
+
+- [x] Add SQLite on-disk migration with unique scoped hash, WAL and synchronous FULL.
+- [x] Implement .NET `IdempotencyKit.Sqlite` Standard store and shared-transaction executor.
+- [x] Implement Node 24 `@idempotencykit/sqlite` with guarded statement session and per-file local queue.
+- [x] Enforce fail-closed unrelated `SQLITE_BUSY` rather than false `InProgress`; never use in-memory tests to claim durable behavior.
+- [x] Validate owner fencing, mismatch, replay, uncertain leases, cleanup, atomic rollback and 100-way same-key concurrency on actual files in both ecosystems.
+- [x] Test cross-process writer contention and Node SIGKILL before/after COMMIT with same-key retries.
+- [ ] SQLite EF Core 10, authenticated ASP.NET Core/NestJS adapters (P4) and online backup/restore fault injection.
+- [ ] Release packaging, operations, incident reconciliation and security reviews.
 
 ## Phase 4 — Hardening and observability
 
