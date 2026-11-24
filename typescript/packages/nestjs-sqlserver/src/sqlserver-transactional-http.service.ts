@@ -28,7 +28,7 @@ class RequestProblem extends Error {
  * @Res() on a route guarded by a REAL authentication guard.
  *
  * NEVER apply Standard-mode @Idempotent() on this route. The callback receives
- * the same PostgreSQL Transaction that writes the completed idempotency record.
+ * the same SQL Server mssql.Transaction that stores the completed replay record.
  */
 @Injectable()
 export class SqlServerTransactionalHttpService {
