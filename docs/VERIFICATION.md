@@ -7,17 +7,17 @@ This file records **observed test results**, separately from planned guarantees.
 
 ## 2026-11-24 — SQLite on-disk Standard + Transactional core (P3)
 
-**Verified implementation commit:** `a652b6d685d8a79489aa4637f7b17413214e0385` on `feature/sqlite-core-v1`.
+**Verified implementation commit:** `f90d44f4dac2a482cc0ddfd4c0628b06d8f629c2` on `feature/sqlite-core-v1`.
 
-- [SQLite File-backed CI run 45364531916](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45364531916): **9 .NET + 13 Node = 22 passing real on-disk SQLite tests**, 0 failed, 0 skipped.
-- [PostgreSQL regression CI run 45364532249](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45364532249): .NET **40 passed**, Node **51 passed** (existing 38 PostgreSQL/core + the 13 new file-backed SQLite tests), 0 failed. SQL Server-only Node tests are intentionally skipped in this PostgreSQL-only job (19 skips), but all run in SQL Server CI.
-- [SQL Server 2022 regression run 45364531778](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45364531778): **22 .NET and 19 Node passed**, 0 failed, 0 skipped.
+- [SQLite File-backed CI run 45365414949](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45365414949): **10 .NET + 14 Node = 24 passing real on-disk SQLite tests**, 0 failed, 0 skipped.
+- [PostgreSQL regression CI run 45365414955](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45365414955): .NET **40 passed**, Node **52 passed** (existing 38 PostgreSQL/core + the 14 new file-backed SQLite tests), 0 failed. SQL Server-only Node tests are intentionally skipped in this PostgreSQL-only job (19 skips), but all run in SQL Server CI.
+- [SQL Server 2022 regression run 45365414962](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45365414962): **22 .NET and 19 Node passed**, 0 failed, 0 skipped.
 
 | SQLite real-file tests | Passed | Failed | Skipped |
 | --- | ---: | ---: | ---: |
-| .NET 10 / Microsoft.Data.Sqlite 10.0.4 | **9** | 0 | 0 |
-| Node 24 / built-in node:sqlite | **13** | 0 | 0 |
-| **SQLite total** | **22** | **0** | **0** |
+| .NET 10 / Microsoft.Data.Sqlite 10.0.4 | **10** | 0 | 0 |
+| Node 24 / built-in node:sqlite | **14** | 0 | 0 |
+| **SQLite total** | **24** | **0** | **0** |
 
 ### SQLite behavior verified
 
@@ -25,13 +25,15 @@ This file records **observed test results**, separately from planned guarantees.
 - Standard-mode new claims, owner-token fencing, rejected false owners, lease extension, 2xx JSON completion and persisted byte-for-byte replay from a new physical connection/store.
 - Same scoped key with changed fingerprint => mismatch and no second business callback.
 - Expired Standard-mode processing claims become `Uncertain`, never automatically reacquired.
+- Corrupted processing records with missing/null lease timestamps fail closed as `Uncertain` in both .NET and Node; no domain callback is allowed.
 - SQLite Transactional mode uses `BEGIN IMMEDIATE` and the **provided SqliteConnection/SqliteTransaction or restricted Node statement session** for both business row and replay response before a single COMMIT.
 - Handler failure or unsafe response headers after the business INSERT => **rollback both** the domain row and provisional claim, allowing a genuine same-key retry of a rolled-back transaction.
 - **100 concurrent same-key** attempts in both ecosystems create **one** committed domain row/result. Node serializes its own local same-file operations and .NET records any thrown SQLITE_BUSY storage errors separately from idempotency outcomes.
 - A separate Node process holds a transaction writing an **unrelated row/key**: the second connection gets `SQLITE_BUSY` as a storage error, **never** a spurious `InProgress`. .NET separately verifies this file-wide writer contention.
 - Bounded retention cleanup deletes only expired **completed** results, preserving uncertain rows.
 - An already-completed DB record tampered with a syntactically valid but unsafe `Set-Cookie` header fails closed at replay time.
-- Node transactional session rejects manual COMMIT, preventing business callback from bypassing validation and the executor-owned atomic COMMIT.
+- Node transactional session rejects manual COMMIT and disguised leading SQL comment/semicolon variants, preventing business callback from bypassing validation and the executor-owned atomic COMMIT.
+- The Node inline SQLite migration text is checked for **exact normalized DDL parity** with the published `spec/sql/sqlite/001_idempotencykit_records.sql` migration. The SQLite source package now explicitly requires Node 24+.
 - **Node SIGKILL before COMMIT:** independent worker process is killed while business row and claim are uncommitted; both disappear, then a same-key retry commits once.
 - **Node SIGKILL after COMMIT but before caller acknowledgement:** independent worker is killed after COMMIT; same-key retry from another executor replays saved bytes without another SQL INSERT.
 
