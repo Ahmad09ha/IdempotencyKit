@@ -369,14 +369,16 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
                 (conn, tx, ct) => InsertAsync(conn, tx, ct, otherKey, 21),
                 TimeSpan.FromHours(1));
             Assert.Equal(TransactionalExecutionStatus.Executed, independent.Status);
-            Assert.Equal(1L,
-                await CountAsync("idempotencykit_sqlserver_orders_test", otherKey));
+            // Don't scan the unindexed business table while the other INSERT
+            // is uncommitted: a READ COMMITTED table scan could wait for that
+            // unrelated row lock even though the key-specific app lock works.
         }
         finally
         {
             release.SetResult();
         }
         Assert.Equal(TransactionalExecutionStatus.Executed, (await held).Status);
+        Assert.Equal(1L, await CountAsync("idempotencykit_sqlserver_orders_test", otherKey));
         Assert.Equal(1L, await CountAsync("idempotencykit_sqlserver_orders_test", heldKey));
     }
 
