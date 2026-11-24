@@ -171,7 +171,11 @@ public sealed class SqliteEfCoreTests(FileSqliteFixture fixture) : IClassFixture
         var callbacks = 0;
         var invalid = CreateExecutor(_ => new SqliteOrdersDb(
             new DbContextOptionsBuilder<SqliteOrdersDb>()
-                .UseSqlite(fixture.DatabasePath).Options));
+                .UseSqlite(new SqliteConnectionStringBuilder
+                {
+                    DataSource = fixture.DatabasePath,
+                    Mode = SqliteOpenMode.ReadWrite
+                }.ToString()).Options));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             invalid.ExecuteAsync(key, Fingerprint(6), (db, ct) =>
             {
