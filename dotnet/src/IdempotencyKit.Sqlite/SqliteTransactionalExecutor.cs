@@ -49,7 +49,7 @@ public sealed class SqliteTransactionalExecutor
             StoredHttpResponse? replay = null;
             await using (var read = SqlitePrimitives.Command(conn, tx, $"""
                 SELECT request_fingerprint, state,
-                       lease_expires_at <= {SqlitePrimitives.Now} AS expired,
+                       CASE WHEN lease_expires_at IS NULL OR lease_expires_at <= {SqlitePrimitives.Now} THEN 1 ELSE 0 END AS expired,
                        response_status, response_content_type, response_body,
                        response_headers
                   FROM idempotencykit_records WHERE scope_key_hash = @key

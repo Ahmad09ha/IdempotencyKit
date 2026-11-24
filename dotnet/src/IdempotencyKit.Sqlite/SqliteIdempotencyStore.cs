@@ -94,7 +94,7 @@ public sealed class SqliteIdempotencyStore : IIdempotencyStore
                            lease_expires_at = NULL
                      WHERE scope_key_hash = @key
                        AND state = 'processing'
-                       AND lease_expires_at <= {SqlitePrimitives.Now}
+                       AND (lease_expires_at IS NULL OR lease_expires_at <= {SqlitePrimitives.Now})
                     """);
                 SqlitePrimitives.Bind(expire, "@key", scopeKeyHash);
                 var changed = await expire.ExecuteNonQueryAsync(cancellationToken);
