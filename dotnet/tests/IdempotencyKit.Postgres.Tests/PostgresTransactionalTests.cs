@@ -279,4 +279,48 @@ public sealed class PostgresTransactionalTests(PostgresFixture fixture)
         Assert.Equal(TransactionalIdempotencyStatus.Executed, retry.Status);
         Assert.Equal(1L, await CountOrders(key));
     }
+
+    [Fact]
+    public async Task ProviderNeutralExecutorInterface_UsesSameAtomicPostgresOperations()
+    {
+        await EnsureOrdersTableAsync();
+        ITransactionalIdempotencyExecutor<NpgsqlConnection, NpgsqlTransaction> executor =
+            new PostgresTransactionalExecutor(fixture.DataSource);
+
+        string key = NewKey(), hash = Fingerprint(11);
+        int executed = 0;
+        var first = await executor.ExecuteAsync(
+            key, hash,
+            async (conn, tx, ct) =>
+            {
+                Interlocked.Increment(ref executed);
+                return await InsertOrder(conn, tx, ct, key, 11);
+            }, TimeSpan.FromHours(1));
+
+        Assert.Equal(TransactionalExecutionStatus.Executed, first.Status);
+        Assert.NotNull(first.Response);
+        Assert.Equal(1L, await CountOrders(key));
+        Assert.Equal(1L, await CountRecords(key));
+
+        var replay = await executor.ExecuteAsync(
+            key, hash,
+            (conn, tx, ct) => throw new InvalidOperationException(
+                "The provider-neutral callback must never execute on replay."),
+            TimeSpan.FromHours(1));
+
+        Assert.Equal(TransactionalExecutionStatus.Replayed, replay.Status);
+        Assert.Equal(first.Response!.Body, replay.Response!.Body);
+        Assert.Equal(1, executed);
+
+        var mismatch = await executor.ExecuteAsync(
+            key, Fingerprint(12),
+            (conn, tx, ct) => throw new InvalidOperationException(
+                "A mismatched fingerprint must not execute a callback."),
+            TimeSpan.FromHours(1));
+
+        Assert.Equal(TransactionalExecutionStatus.FingerprintMismatch, mismatch.Status);
+        Assert.Null(mismatch.Response);
+        Assert.Equal(1L, await CountOrders(key));
+    }
+
 }

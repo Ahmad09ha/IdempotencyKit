@@ -8,3 +8,9 @@ export type {
 export type {
   IdempotencyStore, IdempotencyClaimResult, IdempotencyClaimStatus,
 } from "./idempotency-store.js";
+
+export { TransactionalExecutionStatuses } from "./transactional-executor.js";
+export type {
+  TransactionalIdempotencyExecutor, TransactionalIdempotencyStatus,
+  TransactionalIdempotencyResult,
+} from "./transactional-executor.js";

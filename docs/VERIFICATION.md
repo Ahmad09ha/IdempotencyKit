@@ -3,6 +3,23 @@
 This file records **observed test results**, separately from planned guarantees. A test passing on a simulated failure or single CI host is **not** equivalent to production failure certification.
 
 
+## 2026-11-24 — Provider-neutral transactional contracts (P0)
+
+**Verified source commit:** `f526406597e26e25de937fc38eccc62048d347c4` on `feature/provider-neutral-contracts-v1`.  
+**GitHub Actions:** [run 45300000437](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45300000437). Both projects compiled and passed **all tests** against PostgreSQL 17.
+
+| Ecosystem | Tests passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| .NET 10 (core, Npgsql, EF Core, ASP.NET Core) | **40** | 0 | 0 |
+| Node.js / TypeScript / NestJS Express | **38** | 0 | 0 |
+| **Total** | **78** | **0** | **0** |
+
+**New evidence:** both language suites validate the same `spec/fixtures/transactional-provider-v1.json` outcome mapping, and the Npgsql executor is exercised **through its new provider-neutral typed interface** with a real committed business row, replay, and fingerprint mismatch. The TypeScript PostgreSQL class implements the generic session contract at compile time; all existing PostgreSQL transactional, Standard-mode, HTTP, EF Core, and crash tests remain green.
+
+**Not verified:** SQL Server and SQLite **do not have executable adapters or CI services yet**. The SQL Server/SQLite architecture and rollout documents are proposals only; no provider-specific correctness claims are made. PostgreSQL remains the sole tested provider for actual durable SQL idempotency.
+
+See [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md) and [Database Provider Rollout](DATABASE_PROVIDER_ROADMAP.md).
+
 ## 2026-11-23 — EF Core 10 + PostgreSQL Transactional HTTP integration
 
 **Verified source commit:** `6ca75715397de09500185a288406956e20ac9b85` on feature branch `feature/efcore-transactional-http-v1`.  

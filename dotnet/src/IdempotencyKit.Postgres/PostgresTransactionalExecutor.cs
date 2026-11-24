@@ -32,6 +32,7 @@ public sealed record TransactionalIdempotencyResult(
 /// this callback assuming they can be rolled back.
 /// </summary>
 public sealed class PostgresTransactionalExecutor
+    : ITransactionalIdempotencyExecutor<NpgsqlConnection, NpgsqlTransaction>
 {
     private readonly NpgsqlDataSource _dataSource;
     private readonly TimeSpan _claimLockTimeout;
@@ -191,6 +192,36 @@ public sealed class PostgresTransactionalExecutor
         return new TransactionalIdempotencyResult(
             TransactionalIdempotencyStatus.Executed,
             response with { Headers = storedHeaders });
+    }
+
+    /// <summary>
+    /// Provider-neutral view of the already-supported Npgsql transactional API.
+    /// The concrete ExecuteAsync remains unchanged for source compatibility.
+    /// Future relational providers implement the same typed interface with
+    /// their own connection/transaction types and locking algorithm.
+    /// </summary>
+    async Task<TransactionalExecutionResult>
+        ITransactionalIdempotencyExecutor<NpgsqlConnection, NpgsqlTransaction>.ExecuteAsync(
+            string scopeKeyHash,
+            string requestFingerprint,
+            Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken,
+                Task<StoredHttpResponse>> operation,
+            TimeSpan retention,
+            CancellationToken cancellationToken)
+    {
+        var result = await ExecuteAsync(
+            scopeKeyHash, requestFingerprint, operation, retention, cancellationToken);
+        var status = result.Status switch
+        {
+            TransactionalIdempotencyStatus.Executed => TransactionalExecutionStatus.Executed,
+            TransactionalIdempotencyStatus.Replayed => TransactionalExecutionStatus.Replayed,
+            TransactionalIdempotencyStatus.InProgress => TransactionalExecutionStatus.InProgress,
+            TransactionalIdempotencyStatus.FingerprintMismatch =>
+                TransactionalExecutionStatus.FingerprintMismatch,
+            TransactionalIdempotencyStatus.Uncertain => TransactionalExecutionStatus.Uncertain,
+            _ => throw new InvalidOperationException("Unknown PostgreSQL transactional status.")
+        };
+        return new TransactionalExecutionResult(status, result.Response);
     }
 
     private static async Task<TransactionalIdempotencyResult> InspectExistingAsync(

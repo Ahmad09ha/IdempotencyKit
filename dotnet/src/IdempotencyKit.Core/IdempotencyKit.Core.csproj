@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <Description>Contracts for the future IdempotencyKit engine (scaffold only).</Description>
+    <Description>Database-independent scoped identity, Standard-mode store, and transactional execution contracts.</Description>
   </PropertyGroup>
 </Project>

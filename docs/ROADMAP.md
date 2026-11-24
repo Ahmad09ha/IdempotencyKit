@@ -64,11 +64,13 @@ The core implements scoped fingerprints and the PostgreSQL adapters implement St
 
 ## Next planning milestone — more database providers
 
-- [ ] Define a provider-neutral transactional session, claim/replay and response contract that can share hashing and HTTP policies.
-- [ ] Design SQL Server concurrency and transaction semantics with `Microsoft.Data.SqlClient` and EF Core SQL Server.
-- [ ] Design SQLite WAL/busy-timeout, one-writer semantics and single-node durability limitations.
+- [x] Define provider-neutral .NET/TypeScript transactional interfaces, keep Standard-mode store contracts, and implement PostgreSQL adapters against them.
+- [x] Document SQL Server 2022+/Azure SQL candidate lock/transaction semantics, migration and integration-test gates (not implemented).
+- [x] Document SQLite WAL, BEGIN IMMEDIATE, busy-timeout, file durability, single-host topology and test gates (not implemented).
 - [ ] Evaluate MySQL/MariaDB and other engines against the same failure matrix.
 - [ ] Add provider-specific migration versions, real-database stress tests and failure injection instead of assuming PostgreSQL SQL is portable.
+
+**Full staged plan:** [Database Provider Rollout](DATABASE_PROVIDER_ROADMAP.md) and [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
 
 ## Phase 4 — Hardening and observability
 

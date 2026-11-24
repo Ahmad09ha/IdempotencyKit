@@ -2,12 +2,14 @@
 
 The solution includes scoped fingerprints, Standard-mode HTTP, a PostgreSQL transaction executor, **EF Core 10 shared-transaction integration**, **transactional ASP.NET Core PostgreSQL endpoints**, xUnit integration tests and a health-only sample.
 
-- `IdempotencyKit.Core`: scoped identity, canonical JSON request fingerprints, storage contracts.
-- `IdempotencyKit.Postgres`: Standard-mode store plus `PostgresTransactionalExecutor` for database business SQL + completed replay result in **one** Npgsql transaction.
+- `IdempotencyKit.Core`: scoped identity, canonical JSON fingerprints, `IIdempotencyStore`, and provider-neutral `ITransactionalIdempotencyExecutor<TConnection,TTransaction>` + `TransactionalExecutionResult`.
+- `IdempotencyKit.Postgres`: Standard-mode store plus `PostgresTransactionalExecutor`, now also implementing the provider-neutral interface through an explicit compatibility adapter. Existing concrete API unchanged.
 - `IdempotencyKit.AspNetCore`: database-neutral HTTP input preparation and Standard-mode endpoint middleware.
 - `IdempotencyKit.AspNetCore.Postgres`: `MapTransactionalPost` and `AddPostgresTransactionalIdempotency` for authenticated PostgreSQL transactions.
 - `IdempotencyKit.EntityFrameworkCore.Postgres`: `PostgresEfCoreTransactionalExecutor<TContext>` verifies same connection and joins the Npgsql transaction.
 - `IdempotencyKit.Postgres.Tests`: real PostgreSQL integration tests.
+
+**Provider expansion:** SQL Server and SQLite are planned, not implemented. See [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md) for the generic interface and the database-specific concurrency contract.
 
 ## Build
 
