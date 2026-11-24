@@ -166,11 +166,11 @@ integration("Throw/invalid response rolls both SQL effects back", async () => {
   assert.equal(await count("idempotencykit_sqlserver_orders_test", scope), 1);
 });
 
-integration("24 concurrent same-key callbacks commit exactly one order", async () => {
+integration("100 concurrent same-key callbacks commit exactly one order", async () => {
   const scope = key(), fp = fingerprint(6);
   const runner = new SqlServerTransactionalExecutor(pool, 8_000);
   let calls = 0;
-  const result = await Promise.all(Array.from({ length: 24 }, () =>
+  const result = await Promise.all(Array.from({ length: 100 }, () =>
     runner.execute(scope, fp, async transaction => {
       calls++;
       await delay(80);

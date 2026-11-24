@@ -240,14 +240,14 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ConcurrentSameKeyCommitsExactlyOneDomainWrite()
+    public async Task HundredConcurrentSameKeyCallsCommitExactlyOneDomainWrite()
     {
         var executor = new SqlServerTransactionalExecutor(
             fixture.ConnectionString, TimeSpan.FromSeconds(8));
         var key = NewKey();
         var hash = Fingerprint(6);
         int called = 0;
-        var attempts = await Task.WhenAll(Enumerable.Range(0, 24).Select(_ =>
+        var attempts = await Task.WhenAll(Enumerable.Range(0, 100).Select(_ =>
             executor.ExecuteAsync(key, hash, async (conn, tx, ct) =>
             {
                 Interlocked.Increment(ref called);
