@@ -238,27 +238,27 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
         int calls=0;
         var attempts=await Task.WhenAll(Enumerable.Range(0,100).Select(async _ => {
             try {
-                return await executor.ExecuteAsync(key,fingerprint,
+                var result = await executor.ExecuteAsync(key,fingerprint,
                     async (conn,tx,ct) => {
                         Interlocked.Increment(ref calls);
                         await Task.Delay(12,ct);
                         return await InsertAsync(conn,tx,ct,key,6);
                     },TimeSpan.FromHours(1));
+                return (Result: result, StorageBusy: false);
             } catch (SqliteException busy) when (busy.SqliteErrorCode is 5 or 6) {
-                // SQLite file-lock contention is a STORAGE ERROR, not evidence
-                // the same scoped key is running; never fabricate InProgress.
-                return new TransactionalExecutionResult(
-                    TransactionalExecutionStatus.Uncertain); // test-only sentinel
+                // Track a genuine thrown storage exception SEPARATELY from
+                // transactional status. Never fabricate an Uncertain/InProgress
+                // outcome just to make a busy writer look like a duplicate.
+                return (Result: (TransactionalExecutionResult?)null, StorageBusy: true);
             }
         }));
         Assert.Equal(1,calls);
-        Assert.Single(attempts,x=>x.Status==TransactionalExecutionStatus.Executed);
+        Assert.Single(attempts,x=>x.Result?.Status==TransactionalExecutionStatus.Executed);
         Assert.Equal(1L,await CountAsync("orders_sqlite_test",key));
         Assert.Equal(1L,await CountAsync("idempotencykit_records",key));
-        Assert.All(attempts,x=>Assert.Contains(x.Status,new[] {
-            TransactionalExecutionStatus.Executed,TransactionalExecutionStatus.Replayed,
-            TransactionalExecutionStatus.Uncertain
-        }));
+        Assert.All(attempts,x=>Assert.True(x.StorageBusy ||
+            x.Result?.Status is TransactionalExecutionStatus.Executed
+                or TransactionalExecutionStatus.Replayed));
     }
 
     [Fact]
