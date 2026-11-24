@@ -1,0 +1,21 @@
+# Security and performance hardening — phase 2
+
+## Scope and security invariants
+
+- Validate replayable JSON bytes (strict UTF-8, valid JSON, <=256 KiB), status, content type and allowlisted headers before persistence, and revalidate completed records before returning them. A malformed replay must never execute the operation again. PostgreSQL previously validated headers on write but did not fully revalidate completed rows on read; its Standard store did not parse response JSON. SQL Server and SQLite had read validation but did not reject all forbidden field-value controls.
+- Reject HTTP field values containing forbidden C0 controls or DEL (HTAB allowed), including NUL, before committing a business transaction. RFC 9110 §5.5: https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5 . Tests deliberately insert malformed fixture data into disposable databases, not production. Existing valid fingerprints, schema and API signatures are unchanged.
+- Negative tests run the real Standard store and Transactional executor on all three providers in both languages: invalid header/content type/JSON/UTF-8 cannot commit; successful business INSERT followed by invalid capture must roll back both records; tampered completed data must fail closed without invoking the callback.
+- ASP.NET Core Standard response capture bounds `WriteByte` and `SetLength` as well as ordinary writes. Request/response limits do not replace upstream parser limits, concurrency/rate limits, quotas, or application-level authorization (OWASP API4: https://api-security.owasp.org/editions/2023/en/0xa4-unrestricted-resource-consumption/).
+- Scope: trusted app callbacks and authenticated principals. A malicious callback with raw DB transaction access, an attacker with database write access able to forge *valid* records, or application authorization misconfiguration is not prevented by replay validation. No claim of encryption, production certification or external exactly-once semantics.
+
+## Performance baseline
+
+The real provider CI and SQLite Orders sample jobs execute 12 warm-up operations and three measured phases of 96 HTTP requests at closed-loop concurrency 8: independent new keys, completed-key replays, and contention on one cold key. All response bodies are consumed. Raw HTTP attempts, status counts, p50/p95/p99 end-to-end latency, attempt throughput and sparse RSS samples are logged as `IDK_BENCHMARK` JSON. Bounded same-key recovery and SQL/Orders readback assertions run outside timed windows. No retries are hidden inside the timed phases. Replay and hot-key results must match stored bytes and exactly one durable write per key. SQLite busy 503 or same-key 409 counts are retained, not called successful requests.
+
+PostgreSQL and SQL Server use the mixed-runtime loopback HTTP fixtures with real containers; their Node RSS includes the load client and test process. SQLite runs both sample servers separately against independent local files. RSS is sampled, not peak memory or a leak test. Shared CI hardware, tiny bodies, warm connections, local networking, and sample handlers mean the results are repeatable smoke baselines, not comparative production capacity, an SLO or certification. Do not load-test production with these scripts. Compare later baselines on the same controlled hardware and runtime versions.
+
+## Dependency audit
+
+The dedicated workflow uses NuGet direct/transitive advisory reporting for the solution and npm's committed lockfile advisory graph. High/critical findings in the NuGet solution or npm runtime graph fail the gate; the complete npm graph including build tooling is reported separately for triage. Invalid or unavailable reports do not count as clean. Reports are retained as CI artifacts. See [NuGet auditing](https://learn.microsoft.com/en-us/nuget/concepts/auditing-packages) and [npm audit](https://docs.npmjs.com/cli/audit/). Advisory scanning covers known dependencies, not application code or all possible vulnerabilities. License decisions are separate.
+
+Evidence is pending exact-source CI at implementation time.

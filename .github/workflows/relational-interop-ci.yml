@@ -28,6 +28,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      IDEMPOTENCYKIT_PERF_BASELINE: "1"
       IDEMPOTENCYKIT_INTEROP_PROVIDER: postgres
       IDEMPOTENCYKIT_INTEROP_POSTGRES_URL: postgresql://postgres:testpass@127.0.0.1:5432/idk_interop
       IDEMPOTENCYKIT_INTEROP_DOTNET_DB: Host=127.0.0.1;Port=5432;Database=idk_interop;Username=postgres;Password=testpass
@@ -64,6 +65,7 @@ jobs:
         ports:
           - 1433:1433
     env:
+      IDEMPOTENCYKIT_PERF_BASELINE: "1"
       IDEMPOTENCYKIT_INTEROP_PROVIDER: sqlserver
       IDEMPOTENCYKIT_INTEROP_SQLSERVER_PASSWORD: "SqlServerTest_Strong!2026"
     steps:

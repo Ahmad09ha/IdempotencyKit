@@ -323,4 +323,90 @@ public sealed class PostgresTransactionalTests(PostgresFixture fixture)
         Assert.Equal(1L, await CountOrders(key));
     }
 
+
+    [Fact]
+    public async Task UnsafeReplayFieldsAndInvalidUtf8CannotCommitOrReplay()
+    {
+        await EnsureOrdersTableAsync();
+        var store = new PostgresIdempotencyStore(fixture.DataSource);
+        var executor = new PostgresTransactionalExecutor(fixture.DataSource);
+        var valid = Json(1, 2);
+        var invalid = new[]
+        {
+            valid with { Headers = new Dictionary<string, string> { ["Location"] = "/orders/\u0000bad" } },
+            valid with { Headers = new Dictionary<string, string> { ["ETag"] = "bad\u0001value" } },
+            valid with { ContentType = "application/json; charset=utf-8\u007f" },
+            valid with { Body = new byte[] { 0x22, 0xff, 0x22 } },
+            valid with { Body = Encoding.UTF8.GetBytes("not-json") }
+        };
+        foreach (var bad in invalid)
+        {
+            var key = NewKey();
+            var hash = Fingerprint(2);
+            var claimed = await store.TryClaimAsync(key, hash, TimeSpan.FromMinutes(1));
+            Assert.Equal(IdempotencyClaimStatus.Acquired, claimed.Status);
+            await Assert.ThrowsAnyAsync<Exception>(() => store.TryCompleteAsync(
+                key, hash, claimed.OwnerToken!.Value, bad, TimeSpan.FromHours(1)));
+            Assert.Equal(IdempotencyClaimStatus.InProgress,
+                (await store.TryClaimAsync(key, hash, TimeSpan.FromMinutes(1))).Status);
+            Assert.True(await store.TryCompleteAsync(key, hash, claimed.OwnerToken!.Value,
+                valid, TimeSpan.FromHours(1)));
+
+            var txKey = NewKey();
+            var called = false;
+            await Assert.ThrowsAnyAsync<Exception>(() => executor.ExecuteAsync(
+                txKey, hash, async (connection, transaction, ct) =>
+                {
+                    // The business SQL must really run before capture fails.
+                    await InsertOrder(connection, transaction, ct, txKey, 2);
+                    called = true;
+                    return bad;
+                }, TimeSpan.FromHours(1)));
+            Assert.True(called);
+            Assert.Equal(0L, await CountOrders(txKey));
+            Assert.Equal(0L, await CountRecords(txKey));
+        }
+
+        // Directly corrupt completed test rows without bypassing the schema.
+        // Both store and transactional replay must reject them; no callback
+        // may run and the record must remain available for reconciliation.
+        var tampered = new[]
+        {
+            (Headers: "{\"set-cookie\":\"fixture\"}", Body: valid.Body, Type: valid.ContentType),
+            (Headers: "{\"location\":\"bad\\u0001value\"}", Body: valid.Body, Type: valid.ContentType),
+            (Headers: "{}", Body: valid.Body, Type: "text/html"),
+            (Headers: "{}", Body: new byte[] { 0x22, 0xff, 0x22 }, Type: valid.ContentType),
+            (Headers: "{}", Body: Encoding.UTF8.GetBytes("not-json"), Type: valid.ContentType)
+        };
+        foreach (var bad in tampered)
+        {
+            var key = NewKey();
+            var hash = Fingerprint(2);
+            var claim = await store.TryClaimAsync(key, hash, TimeSpan.FromMinutes(1));
+            Assert.True(await store.TryCompleteAsync(key, hash, claim.OwnerToken!.Value,
+                valid, TimeSpan.FromHours(1)));
+            await using (var connection = await fixture.DataSource.OpenConnectionAsync())
+            {
+                await using var command = new NpgsqlCommand("UPDATE idempotencykit_records SET response_headers=CAST(@headers AS jsonb), response_body=@body, response_content_type=@type WHERE scope_key_hash=@key", connection);
+                command.Parameters.AddWithValue("key", key);
+                command.Parameters.AddWithValue("headers", bad.Headers);
+                command.Parameters.AddWithValue("body", bad.Body);
+                command.Parameters.AddWithValue("type", bad.Type);
+                Assert.Equal(1, await command.ExecuteNonQueryAsync());
+            }
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                store.TryClaimAsync(key, hash, TimeSpan.FromMinutes(1)));
+            var ran = false;
+            await Assert.ThrowsAnyAsync<Exception>(() => executor.ExecuteAsync(key, hash,
+                (_, _, _) =>
+                {
+                    ran = true;
+                    return Task.FromResult(valid);
+                }, TimeSpan.FromHours(1)));
+            Assert.False(ran);
+            Assert.Equal(1L, await CountRecords(key));
+            Assert.Equal(0L, await CountOrders(key));
+        }
+    }
+
 }

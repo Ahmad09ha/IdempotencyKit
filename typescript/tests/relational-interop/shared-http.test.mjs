@@ -9,6 +9,7 @@ import { createInterface } from "node:readline";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { runHttpBaseline, readRssMiB } from "../support/http-performance-baseline.mjs";
 import pg from "pg";
 import sql from "mssql";
 import {
@@ -85,6 +86,7 @@ function startHost(stage = "retry") {
     child.once("exit", (code, signal) => resolve({ code, signal }));
   });
   const host = {
+    pid: child.pid,
     async wait(prefix) {
       if (seen.has(prefix)) return seen.get(prefix);
       const signal = deferred();
@@ -367,4 +369,18 @@ test("24 concurrent mixed-framework requests produce one committed result", { ti
   ));
   for (const result of results) assertReplay(result, results[0]);
   await assertDurable(key, results[0]);
+});
+
+test("bounded HTTP performance baseline preserves durable correctness", {
+  skip: process.env.IDEMPOTENCYKIT_PERF_BASELINE !== "1",
+  timeout: 180000,
+}, async () => {
+  for (const [runtime,base,pid,memScope] of [
+    ["dotnet",dotnetBase,runningHost.pid,"Kestrel process RSS"],
+    ["node",nestBase,process.pid,"NestJS + test/load-client process RSS"],
+  ]) {
+    await runHttpBaseline({provider,runtime,
+      request:(k,alternate)=>request(base,k,alternate?reordered:body),
+      verify:assertDurable,readRss:()=>readRssMiB(pid),memScope});
+  }
 });

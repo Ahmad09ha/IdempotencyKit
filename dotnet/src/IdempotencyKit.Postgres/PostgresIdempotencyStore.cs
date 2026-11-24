@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using IdempotencyKit.Core;
@@ -13,6 +14,14 @@ namespace IdempotencyKit.Postgres;
 /// </summary>
 public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIdempotencyStore
 {
+
+    // RFC 9110 section 5.5: reject field-value control characters (HTAB
+    // is permitted). Do not rely on a web server rejecting data after COMMIT.
+    private static bool HasInvalidFieldValue(string value) =>
+        value.Any(c => (c < ' ' && c != '\t') || c == '\u007f');
+
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     private const int MaxResponseBytes = 262_144;
     private static readonly HashSet<string> SafeHeaders =
         new(StringComparer.OrdinalIgnoreCase) { "location", "etag", "content-language" };
@@ -217,13 +226,22 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
         {
             var headers = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(6))
                 ?? throw new InvalidOperationException("Stored response headers are missing.");
-            response = new StoredHttpResponse(
+            response = ValidateStoredResponse(new StoredHttpResponse(
                 reader.GetInt32(3), reader.GetString(4),
-                reader.GetFieldValue<byte[]>(5), headers);
+                reader.GetFieldValue<byte[]>(5), headers));
         }
         return new ExistingRecord(
             reader.GetString(0), state,
             !reader.IsDBNull(2) && reader.GetBoolean(2), response);
+    }
+
+    internal static StoredHttpResponse ValidateStoredResponse(StoredHttpResponse response)
+    {
+        // Read-side validation is mandatory: schema constraints do not validate
+        // JSON bytes or every HTTP field value. Never expose corrupt replay data.
+        var headers = JsonSerializer.Deserialize<Dictionary<string, string>>(
+            SerializeSafeHeaders(response))!;
+        return response with { Headers = headers };
     }
 
     internal static string SerializeSafeHeaders(StoredHttpResponse response)
@@ -234,7 +252,7 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
         if (response.Body is null || response.Body.Length > MaxResponseBytes)
             throw new ArgumentException("Response body exceeds 256 KiB or is missing.", nameof(response));
         if (string.IsNullOrWhiteSpace(response.ContentType) || response.ContentType.Length > 128 ||
-            response.ContentType.IndexOfAny(['\r', '\n']) >= 0)
+            HasInvalidFieldValue(response.ContentType))
             throw new ArgumentException("Response content type is missing, oversized, or unsafe.", nameof(response));
         var type = response.ContentType.Split(';')[0].Trim();
         if (!type.Equals("application/json", StringComparison.OrdinalIgnoreCase) &&
@@ -243,6 +261,10 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
         if (response.Headers is null)
             throw new ArgumentException("Response headers must be present.", nameof(response));
 
+        // Validate JSON and UTF-8 before either mode persists a response.
+        _ = StrictUtf8.GetCharCount(response.Body);
+        using (JsonDocument.Parse(response.Body)) { }
+
         var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var header in response.Headers)
         {
@@ -250,7 +272,7 @@ public sealed class PostgresIdempotencyStore(NpgsqlDataSource dataSource) : IIde
             if (!SafeHeaders.Contains(name) || normalized.ContainsKey(name))
                 throw new ArgumentException("Unsafe or duplicated stored response header: " + header.Key);
             if (header.Value is null || header.Value.Length > 4096 ||
-                header.Value.IndexOfAny(['\r', '\n']) >= 0)
+                HasInvalidFieldValue(header.Value))
                 throw new ArgumentException("Unsafe stored response header value.");
             normalized.Add(name, header.Value);
         }

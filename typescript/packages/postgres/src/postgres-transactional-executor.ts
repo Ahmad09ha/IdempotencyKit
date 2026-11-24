@@ -138,9 +138,6 @@ export class PostgresTransactionalExecutor implements TransactionalIdempotencyEx
       // All of them must use this exact client/transaction.
       const response = await operation(client);
       const safeHeaders = validateResponse(response);
-      // Verify the body is real single-value UTF-8 JSON *before* committing.
-      const rawBody = new TextDecoder("utf-8", { fatal: true }).decode(response.body);
-      JSON.parse(rawBody);
       const headersJson = JSON.stringify(safeHeaders);
 
       const completed = await client.query(

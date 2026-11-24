@@ -281,3 +281,54 @@ integration("tampered completed headers are rejected rather than replayed", asyn
       WHERE scope_key_hash = @key`);
   await assert.rejects(() => store.tryClaim(scope, fp, 60_000));
 });
+
+
+integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", async () => {
+  const valid = response(1,2);
+  const invalid = [
+    {...valid,headers:{Location:"/orders/\u0000bad"}},
+    {...valid,headers:{ETag:"bad\u0001value"}},
+    {...valid,contentType:"application/json; charset=utf-8\u007f"},
+    {...valid,body:Buffer.from([0x22,0xff,0x22])},
+    {...valid,body:Buffer.from("not-json")},
+  ];
+  for (const bad of invalid) {
+    const scope=key(), hash=fingerprint(2);
+    const claim=await store.tryClaim(scope,hash,60_000);
+    assert.equal(claim.status,"acquired");
+    await assert.rejects(()=>store.tryComplete(scope,hash,claim.ownerToken,bad,3_600_000));
+    assert.equal((await store.tryClaim(scope,hash,60_000)).status,"in_progress");
+    assert.equal(await store.tryComplete(scope,hash,claim.ownerToken,valid,3_600_000),true);
+
+    const txKey=key();let called=false;
+    await assert.rejects(()=>executor.execute(txKey,hash,async transaction=>{
+      await insertOrder(transaction,txKey,2);
+      called=true;
+      return bad;
+    },3_600_000));
+    assert.equal(called,true);
+    assert.equal(await count("idempotencykit_sqlserver_orders_test",txKey),0);
+    assert.equal(await count("idempotencykit_records",txKey),0);
+  }
+  const tampered=[
+    {headers:'{"set-cookie":"fixture"}',body:valid.body,type:valid.contentType},
+    {headers:'{"location":"bad\\u0001value"}',body:valid.body,type:valid.contentType},
+    {headers:"{}",body:valid.body,type:"text/html"},
+    {headers:"{}",body:Buffer.from([0x22,0xff,0x22]),type:valid.contentType},
+    {headers:"{}",body:Buffer.from("not-json"),type:valid.contentType},
+  ];
+  for(const bad of tampered){
+    const scope=key(),hash=fingerprint(2);
+    const claim=await store.tryClaim(scope,hash,60_000);
+    assert.equal(await store.tryComplete(scope,hash,claim.ownerToken,valid,3_600_000),true);
+    await pool.request().input("key",sql.NVarChar(67),scope).input("headers",sql.NVarChar(sql.MAX),bad.headers)
+      .input("body",sql.VarBinary(sql.MAX),bad.body).input("type",sql.NVarChar(128),bad.type)
+      .query("UPDATE dbo.idempotencykit_records SET response_headers=@headers,response_body=@body,response_content_type=@type WHERE scope_key_hash=@key");
+    await assert.rejects(()=>store.tryClaim(scope,hash,60_000));
+    let called=false;
+    await assert.rejects(()=>executor.execute(scope,hash,async()=>{called=true;return valid;},3_600_000));
+    assert.equal(called,false);
+    assert.equal(await count("idempotencykit_records",scope),1);
+    assert.equal(await count("idempotencykit_sqlserver_orders_test",scope),0);
+  }
+});

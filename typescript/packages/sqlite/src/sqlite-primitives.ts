@@ -125,7 +125,7 @@ export function prepareResponse(response: StoredHttpResponse): {
       response.body.byteLength > 262_144)
     throw new Error("JSON body must be <= 256 KiB.");
   if (typeof response.contentType !== "string" ||
-      response.contentType.length > 128 || /[\r\n]/.test(response.contentType) ||
+      response.contentType.length > 128 || /[\x00-\x08\x0a-\x1f\x7f]/.test(response.contentType) ||
       !["application/json", "application/problem+json"].includes(
         response.contentType.split(";")[0]!.trim().toLowerCase()))
     throw new Error("Only safe JSON content types are supported.");
@@ -138,7 +138,7 @@ export function prepareResponse(response: StoredHttpResponse): {
     const name = original.toLowerCase();
     if (!SAFE_HEADERS.has(name) || Object.hasOwn(headers, name))
       throw new Error("Unsafe or duplicate response header.");
-    if (typeof value !== "string" || value.length > 4096 || /[\r\n]/.test(value))
+    if (typeof value !== "string" || value.length > 4096 || /[\x00-\x08\x0a-\x1f\x7f]/.test(value))
       throw new Error("Unsafe response header value.");
     headers[name] = value;
   }
