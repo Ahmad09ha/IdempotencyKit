@@ -1,6 +1,8 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { fork } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import "reflect-metadata";
 import { Controller, Post, Module, Injectable, Inject, Req, Res, UseGuards } from "@nestjs/common";
@@ -285,3 +287,119 @@ integration("12 concurrent HTTP retries commit one SQL Server domain row", async
   assert.equal(createCalls, before + 1);
   assert.equal(await count(key), 1);
 });
+
+function startCrashWorker(mode) {
+  const worker = fork(
+    fileURLToPath(new URL("./support/sqlserver-transactional-http-crash-worker.mjs",
+      import.meta.url)),
+    [mode], { env: process.env, stdio: ["ignore", "ignore", "pipe", "ipc"] },
+  );
+  let stderr = "";
+  worker.stderr?.on("data", data => { stderr += String(data); });
+  return { worker, stderr: () => stderr };
+}
+
+function waitForPhase(worker, phase, stderr) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      clearListeners();
+      reject(new Error("Crash worker timed out at " + phase + ": " + stderr()));
+    }, 15_000);
+    const onMessage = msg => {
+      if (msg?.phase !== phase) return;
+      clearListeners();
+      resolve(msg);
+    };
+    const onExit = (code, signal) => {
+      clearListeners();
+      reject(new Error("Worker exited before " + phase + ": " +
+        code + "/" + signal + " " + stderr()));
+    };
+    const onError = error => {
+      clearListeners();
+      reject(error);
+    };
+    const clearListeners = () => {
+      clearTimeout(timeout);
+      worker.off("message", onMessage);
+      worker.off("exit", onExit);
+      worker.off("error", onError);
+    };
+    worker.on("message", onMessage);
+    worker.on("exit", onExit);
+    worker.on("error", onError);
+  });
+}
+
+async function killWorker(worker) {
+  if (worker.exitCode !== null || worker.signalCode !== null) return;
+  const exited = new Promise(resolve => worker.once("exit", resolve));
+  if (!worker.kill("SIGKILL"))
+    throw new Error("Could not kill SQL Server test worker.");
+  await exited;
+}
+
+async function requestWorker(port, key) {
+  const response = await fetch(
+    "http://127.0.0.1:" + port + "/orders/transactional",
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": key,
+        "Content-Type": "application/json",
+        "X-Test-User": "alice", "X-Test-Tenant": "acme",
+      },
+      body: JSON.stringify({ itemId: 50, quantity: 7 }),
+      signal: AbortSignal.timeout(12_000),
+    },
+  );
+  return { status: response.status, raw: await response.text() };
+}
+
+integration("live SQL Server HTTP SIGKILL BEFORE COMMIT rolls back and same-key retry executes", async () => {
+  const key = "sqlserver-crash-" + randomUUID();
+  const { worker, stderr } = startCrashWorker("before-commit");
+  const ready = waitForPhase(worker, "ready", stderr);
+  try {
+    const { port } = await ready;
+    const checkpoint = waitForPhase(worker, "before-commit", stderr);
+    const pending = requestWorker(port, key).then(value => value, error => error);
+    await checkpoint;
+    // The worker has an uncommitted SQL INSERT and claim. Killing the entire
+    // HTTP server closes that SQL connection and SQL Server rolls both back.
+    await killWorker(worker);
+    assert.ok((await pending) instanceof Error);
+  } finally {
+    await killWorker(worker);
+  }
+  assert.equal(await count(key), 0);
+  const before = createCalls;
+  const retry = await post("/orders/transactional", { itemId: 50, quantity: 7 }, key);
+  assert.equal(retry.status, 201);
+  assert.equal(await count(key), 1);
+  assert.equal(createCalls, before + 1);
+});
+
+integration("live SQL Server HTTP SIGKILL AFTER COMMIT replays without a second SQL INSERT", async () => {
+  const key = "sqlserver-crash-" + randomUUID();
+  const { worker, stderr } = startCrashWorker("after-commit");
+  const ready = waitForPhase(worker, "ready", stderr);
+  try {
+    const { port } = await ready;
+    const checkpoint = waitForPhase(worker, "after-commit", stderr);
+    const pending = requestWorker(port, key).then(value => value, error => error);
+    await checkpoint;
+    assert.equal(await count(key), 1);
+    await killWorker(worker);
+    assert.ok((await pending) instanceof Error);
+  } finally {
+    await killWorker(worker);
+  }
+  const before = createCalls;
+  const replay = await post("/orders/transactional", { itemId: 50, quantity: 7 }, key);
+  assert.equal(replay.status, 201);
+  assert.equal(replay.body.quantity, 7);
+  assert.equal(await count(key), 1);
+  assert.equal(createCalls, before);
+});
+
