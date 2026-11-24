@@ -1,0 +1,64 @@
+name: Dependency Security Audit
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  nuget:
+    name: NuGet direct + transitive advisory scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore and check advisory service availability
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/security
+          dotnet restore dotnet/IdempotencyKit.slnx -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low | tee artifacts/security/nuget-restore.txt
+          if grep -E 'warning NU190[05]' artifacts/security/nuget-restore.txt; then exit 1; fi
+      - name: Scan solution and reject high/critical advisories
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet package list --project dotnet/IdempotencyKit.slnx --include-transitive --vulnerable --format json --output-version 1 --no-restore > artifacts/security/nuget.json
+          python3 scripts/check-dependency-audit.py nuget artifacts/security/nuget.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nuget-security-audit
+          path: artifacts/security/
+  npm:
+    name: npm locked runtime and development advisory scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: typescript/.nvmrc
+      - name: Audit locked dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../artifacts/security
+          # npm exits nonzero on advisories. Parse the actual report and reject
+          # failed registry responses rather than treating them as clean scans.
+          npm audit --omit=dev --audit-level=none --json > ../artifacts/security/npm-runtime.json
+          npm audit --audit-level=none --json > ../artifacts/security/npm-all.json
+          python3 ../scripts/check-dependency-audit.py npm ../artifacts/security/npm-runtime.json
+          python3 ../scripts/check-dependency-audit.py npm-report ../artifacts/security/npm-all.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-security-audit
+          path: artifacts/security/

@@ -72,3 +72,5 @@ jobs:
             curl --silent --show-error --fail --retry 25 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$port/health"
             node typescript/apps/orders-api/smoke.mjs "http://127.0.0.1:$port"
           done
+          node typescript/tests/support/sqlite-performance-baseline.mjs dotnet 5050 "$dotnet_pid"
+          node typescript/tests/support/sqlite-performance-baseline.mjs node 3000 "$nest_pid"
