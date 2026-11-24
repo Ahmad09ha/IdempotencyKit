@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "description": "Shared observable contract for relational transactional executors; no driver-specific syntax.",
+  "statuses": [
+    {
+      "dotnet": "Executed",
+      "typescript": "executed",
+      "response": true,
+      "callback": "once",
+      "meaning": "Business SQL and replay result committed together."
+    },
+    {
+      "dotnet": "Replayed",
+      "typescript": "replayed",
+      "response": true,
+      "callback": "never",
+      "meaning": "Matching completed key replays without a second business callback."
+    },
+    {
+      "dotnet": "InProgress",
+      "typescript": "in_progress",
+      "response": false,
+      "callback": "never",
+      "meaning": "Competing operation owns an uncommitted or processing claim."
+    },
+    {
+      "dotnet": "FingerprintMismatch",
+      "typescript": "fingerprint_mismatch",
+      "response": false,
+      "callback": "never",
+      "meaning": "Same scoped key was used for different request data."
+    },
+    {
+      "dotnet": "Uncertain",
+      "typescript": "uncertain",
+      "response": false,
+      "callback": "never",
+      "meaning": "The outcome of an existing Standard-mode claim is unresolved."
+    }
+  ],
+  "invariants": {
+    "businessAndResponseOneTransaction": true,
+    "driverSessionProvidedToCallback": true,
+    "validateResponseBeforeCommit": true,
+    "noAutomaticCallbackRetryOnAmbiguousCommit": true,
+    "completedReplayRequiresFreshAuthorization": true,
+    "sqlDialectAndConcurrencyProviderSpecific": true
+  }
+}
