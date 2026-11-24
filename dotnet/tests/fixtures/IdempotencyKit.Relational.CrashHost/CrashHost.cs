@@ -30,7 +30,7 @@ public static class RelationalCrashFixture
 
     public static async Task<int> Main(string[] args)
     {
-        if (args is not [("postgres" or "sqlserver"), ("before-commit" or "after-commit" or "retry")])
+        if (args is not [("postgres" or "sqlserver"), ("before-commit" or "after-commit" or "retry" or "pool-hold")])
             return 2;
         var provider = args[0];
         var stage = args[1];
@@ -102,6 +102,11 @@ public static class RelationalCrashFixture
         await insert.ExecuteNonQueryAsync(ct);
         if (stage == "before-commit")
             await BlockAsync(stage);
+        if (stage == "pool-hold" && http.Request.Headers["Idempotency-Key"].ToString().StartsWith("pool-held-", StringComparison.Ordinal))
+        {
+            Console.WriteLine(BlockedSignal + stage);
+            await Task.Delay(TimeSpan.FromSeconds(12), ct);
+        }
 
         return new StoredHttpResponse(201, "application/json",
             JsonSerializer.SerializeToUtf8Bytes(new { id, quantity }),
