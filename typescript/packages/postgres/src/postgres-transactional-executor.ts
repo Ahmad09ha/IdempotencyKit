@@ -1,19 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import type { StoredHttpResponse } from "@idempotencykit/core";
+import type {
+  StoredHttpResponse, TransactionalIdempotencyExecutor,
+  TransactionalIdempotencyResult,
+} from "@idempotencykit/core";
+export type {
+  TransactionalIdempotencyStatus, TransactionalIdempotencyResult,
+} from "@idempotencykit/core";
 import { readResponse, validateResponse } from "./postgres-idempotency-store.js";
 
 const HASH = /^v1:[0-9a-f]{64}$/;
 const MAX_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
-
-export type TransactionalIdempotencyStatus =
-  | "executed" | "replayed" | "in_progress" | "fingerprint_mismatch" | "uncertain";
-
-export interface TransactionalIdempotencyResult {
-  readonly status: TransactionalIdempotencyStatus;
-  /** Only executed and replayed outcomes carry a response. */
-  readonly response?: StoredHttpResponse;
-}
 
 type ExistingRow = QueryResultRow & {
   request_fingerprint: string;
@@ -47,7 +44,7 @@ function assertMilliseconds(value: number, minimum: number, maximum: number): vo
  * and commits everything together. Competing claims block on the unique key
  * until the transaction commits/rolls back, or get in_progress on lock timeout.
  */
-export class PostgresTransactionalExecutor {
+export class PostgresTransactionalExecutor implements TransactionalIdempotencyExecutor<PoolClient> {
   constructor(
     private readonly pool: Pool,
     private readonly claimLockTimeoutMs: number = 2_000,
