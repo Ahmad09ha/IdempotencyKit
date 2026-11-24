@@ -1,0 +1,74 @@
+name: Package Preview (No Publish)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nuget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet pack dotnet/IdempotencyKit.slnx --configuration Release --output artifacts/nuget
+      - run: python3 scripts/verify-nuget-packages.py artifacts/nuget
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-preview
+          path: artifacts/nuget/*.nupkg
+
+  npm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: typescript/.nvmrc
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm run pack:smoke
+
+  orders:
+    name: SQLite Orders demos over real HTTP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: typescript/.nvmrc
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - run: dotnet build dotnet/samples/Orders.AspNetCore/Orders.AspNetCore.csproj --configuration Release
+      - run: npm ci --no-audit --no-fund && npm run build
+        working-directory: typescript
+      - name: Run both independent samples and verify replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOTNET_SAMPLE=dotnet/samples/Orders.AspNetCore/bin/Release/net10.0/Orders.AspNetCore.dll
+          NEST_SAMPLE=typescript/apps/orders-api/dist/main.js
+          logs=$(mktemp -d)
+          ORDERS_DB_PATH="$logs/dotnet.db" PORT=5050 dotnet "$DOTNET_SAMPLE" >"$logs/dotnet.log" 2>&1 &
+          dotnet_pid=$!
+          ORDERS_DB_PATH="$logs/nest.db" PORT=3000 node "$NEST_SAMPLE" >"$logs/nest.log" 2>&1 &
+          nest_pid=$!
+          trap 'code=$?; if (( code != 0 )); then cat "$logs/"*.log; fi; kill "$dotnet_pid" "$nest_pid" 2>/dev/null || true; rm -rf "$logs"' EXIT
+          for port in 5050 3000; do
+            curl --silent --show-error --fail --retry 25 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$port/health"
+            node typescript/apps/orders-api/smoke.mjs "http://127.0.0.1:$port"
+          done

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -95,9 +96,9 @@ public sealed class IdempotencyMiddleware(
                 "IDEMPOTENCY_INVALID_JSON", "Invalid JSON request.");
             return;
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            logger.LogError(ex, "Idempotency scope configuration failed.");
+            logger.LogError("Idempotency scope configuration failed.");
             await Problem(http, StatusCodes.Status503ServiceUnavailable,
                 "IDEMPOTENCY_CONFIGURATION_ERROR", "Cannot resolve request scope.");
             return;
@@ -106,12 +107,12 @@ public sealed class IdempotencyMiddleware(
         IdempotencyClaimResult decision;
         try
         {
-            decision = await store.TryClaimAsync(
-                scopeKey, fingerprint, options.LeaseDuration, http.RequestAborted);
+            decision = await IdempotencyTelemetry.ObserveClaimAsync(() => store.TryClaimAsync(
+                scopeKey, fingerprint, options.LeaseDuration, http.RequestAborted));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "Idempotency store claim failed.");
+            logger.LogError("Idempotency store claim failed.");
             await Problem(http, StatusCodes.Status503ServiceUnavailable,
                 "IDEMPOTENCY_STORAGE_UNAVAILABLE", "Idempotency storage is unavailable.");
             return;
@@ -159,6 +160,7 @@ public sealed class IdempotencyMiddleware(
         HttpContext http, IIdempotencyStore store, string scopeKey,
         string fingerprint, Guid ownerToken)
     {
+        var startedAt = Stopwatch.GetTimestamp();
         var response = http.Response;
         var originalBody = response.Body;
         await using var capture = new LimitedResponseBuffer(MaxResponseBytes);
@@ -190,17 +192,27 @@ public sealed class IdempotencyMiddleware(
                 throw new InvalidOperationException("Completion failed or ownership expired.");
 
             completed = true;
+            IdempotencyTelemetry.RecordStandardExecution(startedAt, persisted: true);
             response.Body = originalBody;
             response.ContentLength = capture.Length;
             capture.Position = 0;
             await capture.CopyToAsync(originalBody, http.RequestAborted);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            if (!completed)
+                IdempotencyTelemetry.RecordStandardExecution(startedAt, persisted: false);
+            throw;
+        }
+        catch (Exception)
         {
             response.Body = originalBody;
             if (!completed)
+            {
                 await MarkUncertainBestEffort(store, scopeKey, fingerprint, ownerToken);
-            logger.LogError(ex, "Idempotency execution or persistence failed.");
+                IdempotencyTelemetry.RecordStandardExecution(startedAt, persisted: false);
+            }
+            logger.LogError("Idempotency execution or persistence failed.");
             if (!response.HasStarted)
             {
                 response.Clear();
@@ -224,9 +236,9 @@ public sealed class IdempotencyMiddleware(
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await store.TryMarkUncertainAsync(scopeKey, fingerprint, ownerToken, timeout.Token);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            logger.LogError(ex, "Unable to mark idempotency outcome uncertain.");
+            logger.LogError("Unable to mark idempotency outcome uncertain.");
         }
     }
 

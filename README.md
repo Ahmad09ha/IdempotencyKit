@@ -2,7 +2,7 @@
 
 **One HTTP idempotency contract. Two native implementations: ASP.NET Core and NestJS.**
 
-> **Project status: Standard-mode HTTP, PostgreSQL Transactional Mode, EF Core 10 shared-transaction support, and dedicated transaction-aware HTTP APIs are implemented.** ASP.NET Core and NestJS Express have explicit PostgreSQL transactional routes with real integration tests. **Provider-neutral .NET/TypeScript transactional contracts and a shared outcome fixture are now implemented; PostgreSQL conforms to them.** **SQL Server 2022 Standard/Transactional core adapters are now implemented for both .NET and TypeScript, with real SQL Server CI.** **SQL Server EF Core 10, authenticated ASP.NET Core transactional HTTP and NestJS Express transactional HTTP adapters are also implemented and real-database tested.** **SQLite Standard and Transactional database-core adapters are now implemented in .NET and Node 24, with real file-backed tests.** **SQLite EF Core 10, authenticated ASP.NET Core HTTP and NestJS Express HTTP integrations are now implemented and tested on real local database files.** Further database providers, universal transactional annotations, automated reconciliation, publication, and production certification are **not** implemented. The Orders demo apps remain health-only.
+> **Project status:** Standard-mode HTTP, PostgreSQL/SQL Server 2022/SQLite stores and explicit same-database Transactional APIs, EF Core 10 bridges, and provider-specific ASP.NET Core and NestJS Express endpoints are implemented. Both Orders samples now run a real protected SQLite write. The preview build prepares 11 NuGet and eight npm packages; none have been published. See [getting started](docs/GETTING_STARTED.md), [شرح المشروع بالعربي](docs/WALKTHROUGH_AR.md), [operations](docs/OPERATIONS.md) and [release instructions](docs/RELEASING.md).
 
 IdempotencyKit aims to make client retries safer for write APIs. It will detect repeated logical requests, reject conflicting reuse of a key, and replay recorded responses without accidentally executing the same handler twice. For business writes that need stronger crash protection, it will provide an explicitly **transactional** execution API that commits the business mutation and replayable result in the **same database transaction**.
 
@@ -154,7 +154,7 @@ The acceptance suite should eventually prove:
 - One user's key never replays another user's response.
 - .NET and NestJS satisfy the **same language-neutral scenarios**.
 
-See [Failure Matrix](spec/FAILURE_MATRIX.md). The tests have **not** been implemented or executed yet.
+See [Failure Matrix](spec/FAILURE_MATRIX.md). See [Verification Evidence](docs/VERIFICATION.md) for which cases were exercised versus planned.
 
 ## Repository organization
 
@@ -163,21 +163,21 @@ IdempotencyKit/
 ├── spec/              # SHA-256 contract, failure matrix, provider design and fixtures
 ├── docs/              # integration guides, rollout roadmap, verified test evidence
 ├── dotnet/
-│   ├── src/           # core, PostgreSQL, EF Core, ASP.NET Core packages
-│   ├── tests/         # unit and real PostgreSQL integration tests
-│   └── samples/       # health-only Orders sample
+│   ├── src/           # core, three providers, EF Core and ASP.NET Core packages
+│   ├── tests/         # unit and real-database integration tests
+│   └── samples/       # runnable SQLite Orders sample
 ├── typescript/
-│   ├── packages/      # core, PostgreSQL, NestJS Standard + Transactional adapters
+│   ├── packages/      # core, three providers, NestJS Standard + Transactional adapters
 │   ├── tests/         # HTTP, concurrency, crash, and fixture tests
-│   └── apps/          # health-only Orders sample
-└── .github/workflows/ # builds and PostgreSQL integration testing
+│   └── apps/          # runnable SQLite Orders sample
+└── .github/workflows/ # provider and no-publish packaging workflows
 ~~~
 
 The SQL Server provider now has its own `spec/sql/sqlserver`, `.NET` and TypeScript package directories and a dedicated SQL Server CI workflow. SQLite now has its own database-core packages, versioned SQL migration and dedicated file-backed CI workflow.
 
 ## Build and test the workspaces
 
-> **Not production-ready**. The commands build both workspaces and run real PostgreSQL HTTP integration tests when the documented database environment variables are set. The standalone Orders sample apps remain health-only.
+> **Preview, not production-certified.** The standalone SQLite examples need no database server. Set the documented environment variables to use real PostgreSQL or SQL Server in their integration suites.
 
 **.NET 10 SDK** (from the repository root):
 
@@ -193,15 +193,13 @@ dotnet run --project samples/Orders.AspNetCore
 
 ~~~bash
 cd typescript
-npm install
+npm ci
 npm run build
 npm test
 npm run start:orders
 ~~~
 
-The NestJS sample serves `http://localhost:3000/health`. The .NET sample serves `/health` on the local URL printed by ASP.NET Core. Both report `sample-health-only` because neither demo hosts a protected write endpoint by default.
-
-The initial TypeScript scaffold has no `package-lock.json` because registry access was unavailable during creation; commit a lockfile after a successful install and then switch CI to `npm ci`.
+The .NET Orders sample defaults to `127.0.0.1:5050`, and the NestJS sample to `127.0.0.1:3000`. Both have `POST /orders` and a safe local-only demo token. Run `node typescript/apps/orders-api/smoke.mjs http://127.0.0.1:5050` from the repository root (or use port 3000) to create, replay and check that exactly one order was committed. See the [full demo commands](docs/GETTING_STARTED.md#run-the-orders-demos).
 
 See [Getting Started](docs/GETTING_STARTED.md), [.NET workspace](dotnet/README.md), and [NestJS workspace](typescript/README.md).
 
@@ -293,8 +291,8 @@ Read [Transactional Mode v1](spec/TRANSACTIONAL_MODE_V1.md) and [Transactional H
 2. Build the ASP.NET Core Standard-mode engine and PostgreSQL adapter with real concurrency tests.
 3. Build NestJS against the same contract and fixtures.
 4. Add transaction-aware execution to both frameworks and test crash windows.
-5. Add multi-replica stress tests, observability, security hardening, and optional Redis support.
-6. Run release verification, publish packages, and document real guarantees based on evidence.
+5. Expand stress/fault coverage, operations and observability; keep unverified environments out of support claims.
+6. Verify publishable artifacts, then publish only after release approval and licensing.
 
 Full acceptance criteria: [Roadmap](docs/ROADMAP.md). Learning topics and exercises: [Learning Guide](docs/LEARNING_GUIDE.md).
 

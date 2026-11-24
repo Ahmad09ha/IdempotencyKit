@@ -1,6 +1,35 @@
-# Getting Started: Standard-mode HTTP and PostgreSQL Transactional Mode
+# Getting Started
 
-> **Important:** Both frameworks now provide opt-in Standard-mode HTTP adapters with real PostgreSQL integration tests. The Orders samples are still health-only and a health check does not prove idempotency. See [HTTP Standard Mode v1](HTTP_STANDARD_V1.md) for real usage.
+## Run the Orders demos
+
+The two examples use **separate local SQLite files and a local-only demo token**. They are not production authentication examples. No database server or published package is needed. From the repository root, start either app:
+
+~~~bash
+dotnet run --project dotnet/samples/Orders.AspNetCore
+# Or, in another shell:
+cd typescript && npm ci && npm run start:orders
+~~~
+
+Keep the sample running and execute the HTTP check from the repository root:
+
+~~~bash
+node typescript/apps/orders-api/smoke.mjs http://127.0.0.1:5050
+# Use http://127.0.0.1:3000 for NestJS.
+~~~
+
+Try a request yourself on the sample's port:
+
+~~~bash
+curl -i http://127.0.0.1:5050/orders \
+  -H 'Authorization: Bearer orders-demo' \
+  -H 'Idempotency-Key: order-demo-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"productId":42,"quantity":2}'
+~~~
+
+Repeat it with the same key and payload: both the original and replay return `201` with identical bytes and `Location`. The same key with a changed quantity yields `422`, and authorized `GET /orders` observes only one new row. Change the port with `PORT` and the local file with `ORDERS_DB_PATH`; use different files for the two samples. Read the [Arabic walkthrough](WALKTHROUGH_AR.md) for a line-by-line path through the transaction.
+
+## PostgreSQL Standard and Transactional mode
 
 ## Prerequisites
 
@@ -38,13 +67,13 @@ To run the **real PostgreSQL** test suite set `IDEMPOTENCYKIT_TEST_POSTGRES` to 
 dotnet test IdempotencyKit.slnx -c Release
 ~~~
 
-The `IdempotencyKit.Postgres.Tests` and `IdempotencyKit.AspNetCore.Tests` projects test storage, Minimal APIs, MVC annotations, auth and replay. `PostgresTransactionalTests` additionally prove atomic order insertion, concurrent retries and rollback on PostgreSQL backend termination. It **requires PostgreSQL**. `Orders.AspNetCore` still serves only `GET /health`.
+The `IdempotencyKit.Postgres.Tests` and `IdempotencyKit.AspNetCore.Tests` projects test storage, Minimal APIs, MVC annotations, auth and replay. `PostgresTransactionalTests` additionally prove atomic order insertion, concurrent retries and rollback on PostgreSQL backend termination. It **requires PostgreSQL**.
 
 ## TypeScript / NestJS
 
 ~~~bash
 cd typescript
-npm install
+npm ci
 npm run build
 ~~~
 
@@ -54,13 +83,13 @@ To run real PostgreSQL tests, set `IDEMPOTENCYKIT_TEST_POSTGRES_URL` to a databa
 npm test
 ~~~
 
-The `typescript/tests/postgres-v1.test.mjs`, `typescript/tests/http-standard-v1.test.mjs` and `typescript/tests/postgres-transactional-v1.test.mjs` suites skip database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests. The NestJS sample still serves only `GET /health`.
+The `typescript/tests/postgres-v1.test.mjs`, `typescript/tests/http-standard-v1.test.mjs` and `typescript/tests/postgres-transactional-v1.test.mjs` suites skip database scenarios if the environment variable is absent. CI **always sets it**, so its success includes actual PostgreSQL tests.
 
 ## Transactional Mode (explicit callback API)
 
 For database mutations that must commit atomically with the replay record, use `PostgresTransactionalExecutor` from the relevant PostgreSQL package. Both implementations open a transaction and provide **the exact database connection** that the callback must use. The callback returns a bounded JSON response which is saved **before** the single `COMMIT`.
 
-See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) for the Npgsql/`pg.PoolClient` callback API and [Transactional HTTP + EF Core](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) for `MapTransactionalPost`, EF Core shared-transaction contexts and NestJS `handleExpress`. **Do not stack Standard-mode decorators around the same transactional operation**. This is source-only and has no EF Core adapter yet.
+See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md) for the Npgsql/`pg.PoolClient` callback API and [Transactional HTTP + EF Core](TRANSACTIONAL_HTTP_AND_EFCORE_V1.md) for `MapTransactionalPost`, EF Core shared-transaction contexts and NestJS `handleExpress`. **Do not stack Standard-mode decorators around the same transactional operation**.
 
 ## Store API outline
 

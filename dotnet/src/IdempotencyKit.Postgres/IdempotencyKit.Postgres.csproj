@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <Description>PostgreSQL Standard-mode store and atomic same-transaction business operation executor.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.4" />
     <ProjectReference Include="../IdempotencyKit.Core/IdempotencyKit.Core.csproj" />
+    <None Include="../../../spec/sql/postgres/001_idempotencykit_records.sql" Pack="true" PackagePath="sql/postgres/" />
   </ItemGroup>
 </Project>

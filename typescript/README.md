@@ -10,7 +10,7 @@ This npm workspace includes an **implemented Standard-mode PostgreSQL store** pl
 - `@idempotencykit/nestjs-sqlserver`: `SqlServerTransactionalHttpModule.forRoot` + `SqlServerTransactionalHttpService.handleExpress` on guarded NestJS Express routes (`rawBody: true`).
 - `@idempotencykit/nestjs`: Standard-mode module, decorator and interceptor.
 - `@idempotencykit/nestjs-postgres`: `PostgresTransactionalHttpModule.forRoot` and `PostgresTransactionalHttpService.handleExpress` for guarded transaction-aware Express routes; requires `rawBody: true`.
-- `@idempotencykit/orders-api`: `GET /health` only; no protected write routes.
+- `@idempotencykit/orders-api`: local-only SQLite Orders demo with an authenticated transaction-aware `POST /orders`.
 
 **Provider expansion:** SQL Server Standard + Transactional core and explicit NestJS 12 Express HTTP support are implemented and tested; SQLite core and explicit NestJS 12 Express HTTP are implemented and real on-disk tested, including full HTTP process SIGKILL. See [SQLite EF Core + HTTP](../docs/SQLITE_EFCORE_HTTP_V1.md). The shared transactional outcome fixture is executed in both languages; see [Provider Architecture v1](../spec/PROVIDER_ARCHITECTURE_V1.md).
 
@@ -18,7 +18,7 @@ This npm workspace includes an **implemented Standard-mode PostgreSQL store** pl
 
 ~~~bash
 cd typescript
-npm install
+npm ci
 npm run build
 ~~~
 
@@ -47,6 +47,6 @@ Caller must authenticate/authorize, construct the scoped identity, handle the cl
 
 Use `PostgresTransactionalExecutor.execute(...)` for business callbacks or `PostgresTransactionalHttpService.handleExpress(...)` for guarded NestJS Express routes. Do **not** wrap transactional operations with Standard-mode `@Idempotent`. See [Transactional HTTP + EF Core](../docs/TRANSACTIONAL_HTTP_AND_EFCORE_V1.md).
 
-All packages remain `private`/`0.0.0`; do not publish before the API, operational contract, and tests are finalized.
+The eight library packages can be packed as a local preview and remain private/unpublished. See [Releasing](../docs/RELEASING.md).
 
 See [HTTP integration](../docs/HTTP_STANDARD_V1.md), [PostgreSQL Store](../spec/POSTGRES_STORE_V1.md), and [Getting Started](../docs/GETTING_STARTED.md).

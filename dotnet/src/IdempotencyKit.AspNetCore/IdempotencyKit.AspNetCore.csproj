@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <Description>Database-independent ASP.NET Core Standard-mode HTTP and request identity preparation.</Description>
   </PropertyGroup>
   <ItemGroup>

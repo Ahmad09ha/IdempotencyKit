@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { IdempotencyHttpRequest } from "@idempotencykit/nestjs";
 import type { StoredHttpResponse } from "@idempotencykit/core";
-import { computeRequestFingerprint, computeScopeKey } from "@idempotencykit/core";
+import {
+  computeRequestFingerprint, computeScopeKey, observeIdempotencyTransaction,
+} from "@idempotencykit/core";
 import type { Transaction } from "mssql";
 import {
   SQLSERVER_TRANSACTIONAL_HTTP_OPTIONS,
@@ -179,11 +181,11 @@ export class SqlServerTransactionalHttpService {
     }
 
     try {
-      const result = await this.options.executor.execute(
+      const result = await observeIdempotencyTransaction(() => this.options.executor.execute(
         scopeKey, fingerprint,
         transaction => operation(transaction, bodyJson, request),
         this.options.retentionMs ?? 86_400_000,
-      );
+      ));
       switch (result.status) {
         case "executed":
         case "replayed":

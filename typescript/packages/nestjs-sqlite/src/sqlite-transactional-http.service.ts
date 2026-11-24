@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { IdempotencyHttpRequest } from "@idempotencykit/nestjs";
 import type { StoredHttpResponse } from "@idempotencykit/core";
-import { computeRequestFingerprint, computeScopeKey } from "@idempotencykit/core";
+import {
+  computeRequestFingerprint, computeScopeKey, observeIdempotencyTransaction,
+} from "@idempotencykit/core";
 import type { SqliteTransactionSession } from "@idempotencykit/sqlite";
 import {
   SQLITE_TRANSACTIONAL_HTTP_OPTIONS,
@@ -28,7 +30,7 @@ class RequestProblem extends Error {
  * @Res() on a route guarded by a REAL authentication guard.
  *
  * NEVER apply Standard-mode @Idempotent() on this route. The callback receives
- * the same SQLite mssql.Transaction that stores the completed replay record.
+ * a guarded SQLite statement session in the same transaction as replay storage.
  */
 @Injectable()
 export class SqliteTransactionalHttpService {
@@ -179,11 +181,11 @@ export class SqliteTransactionalHttpService {
     }
 
     try {
-      const result = await this.options.executor.execute(
+      const result = await observeIdempotencyTransaction(() => this.options.executor.execute(
         scopeKey, fingerprint,
         transaction => operation(transaction, bodyJson, request),
         this.options.retentionMs ?? 86_400_000,
-      );
+      ));
       switch (result.status) {
         case "executed":
         case "replayed":

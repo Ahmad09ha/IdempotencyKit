@@ -16,18 +16,20 @@ import {
   initializeSqliteDatabase, SqliteIdempotencyStore, SqliteTransactionalExecutor,
 } from "@idempotencykit/sqlite";
 import {
-  computeScopeKey, computeRequestFingerprint,
+  computeScopeKey, computeRequestFingerprint, subscribeIdempotencyTelemetry,
 } from "@idempotencykit/core";
 import {
   SqliteTransactionalHttpModule, SqliteTransactionalHttpService,
 } from "@idempotencykit/nestjs-sqlite";
+
+import { IdempotencyKitModule, Idempotent } from "@idempotencykit/nestjs";
 
 const namespace = "sqlite-nest-http-test";
 const createOperation = "orders.sqlite.nest.create.v1";
 const folder = mkdtempSync(join(tmpdir(), "sqlite-nest-http-"));
 const file = join(folder, "orders.db");
 let app, base;
-let createCalls = 0, failCalls = 0;
+let createCalls = 0, failCalls = 0, standardCalls = 0;
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function open() { return new DatabaseSync(file, { timeout: 100 }); }
@@ -116,6 +118,18 @@ for (const [method, route] of [["create", ""], ["fail", "fail"]]) {
   Res()(SqliteHttpController.prototype, method, 1);
 }
 
+class StandardTelemetryController {
+  write() { return { called: ++standardCalls }; }
+  fail() { throw new Error("Domain failure: must not be part of telemetry."); }
+}
+Controller("standard-telemetry")(StandardTelemetryController);
+UseGuards(TestAuthGuard)(StandardTelemetryController);
+for (const method of ["write", "fail"]) {
+  const descriptor = Object.getOwnPropertyDescriptor(StandardTelemetryController.prototype, method);
+  Post(method)(StandardTelemetryController.prototype, method, descriptor);
+  Idempotent("standard.telemetry." + method)(StandardTelemetryController.prototype, method, descriptor);
+}
+
 before(async () => {
   initializeSqliteDatabase(file);
   const db = open();
@@ -139,8 +153,12 @@ before(async () => {
       resolveCaller: req => ({
         principalId: req.user.id, tenantId: req.user.tenantId,
       }),
+    }), IdempotencyKitModule.forRoot({
+      namespace,
+      store: new SqliteIdempotencyStore(file, 70),
+      resolveCaller: req => ({ principalId: req.user.id, tenantId: req.user.tenantId }),
     })],
-    controllers: [SqliteHttpController],
+    controllers: [SqliteHttpController, StandardTelemetryController],
   })(AppModule);
   app = await NestFactory.create(AppModule, { rawBody: true, logger: false });
   await app.listen(0, "127.0.0.1");
@@ -183,6 +201,67 @@ test("real NestJS SQLite HTTP stores and replays identical bytes after reopen", 
   assert.equal(replay.location, first.location);
   assert.equal(createCalls, before);
   assert.equal(count(key), 1);
+});
+
+test("telemetry reports only bounded transaction outcomes, even with failing collectors", async () => {
+  const events = [];
+  const stopThrowing = subscribeIdempotencyTelemetry(() => {
+    throw new Error("collector failure");
+  });
+  const stopRejecting = subscribeIdempotencyTelemetry(async () => {
+    throw new Error("collector rejection");
+  });
+  const stop = subscribeIdempotencyTelemetry(event => { events.push(event); });
+  const key = "private-telemetry-key-" + randomUUID();
+  const body = { itemId: 920, quantity: 2 };
+  try {
+    const first = await post(path, body, key, "private-principal");
+    assert.equal(first.status, 201);
+    const replay = await post(path, body, key, "private-principal");
+    assert.equal(replay.raw, first.raw);
+    assert.equal((await post(path, { ...body, quantity: 3 }, key, "private-principal")).status, 422);
+    assert.equal((await post(path, body, key, null)).status, 403);
+    assert.equal((await post(path + "/fail", body, key, "private-principal")).status, 503);
+    assert.equal(count(key), 1);
+    assert.deepEqual(events.map(event => event.outcome),
+      ["executed", "replayed", "fingerprint_mismatch", "error"]);
+    for (const event of events) {
+      assert.deepEqual(Object.keys(event).sort(), ["durationMs", "outcome", "stage"]);
+      assert.equal(event.stage, "transactional.execute");
+      assert.ok(Number.isFinite(event.durationMs) && event.durationMs >= 0);
+    }
+  } finally {
+    stop();
+    stopThrowing();
+    stopRejecting();
+  }
+  assert.equal((await post(path, body, key, "private-principal")).status, 201);
+  assert.equal(events.length, 4);
+});
+
+test("Standard HTTP telemetry separates claims from persistence and uncertain retries", async () => {
+  const events = [];
+  const stop = subscribeIdempotencyTelemetry(({ stage, outcome }) => { events.push([stage, outcome]); });
+  const key = "private-telemetry-key-" + randomUUID();
+  const body = { order: "private" };
+  try {
+    const first = await post("/standard-telemetry/write", body, key);
+    assert.equal(first.status, 201);
+    const replay = await post("/standard-telemetry/write", body, key);
+    assert.equal(replay.status, 201);
+    assert.deepEqual(replay.body, first.body);
+    assert.equal(standardCalls, 1);
+    assert.equal((await post("/standard-telemetry/fail", body, key)).status, 503);
+    assert.equal((await post("/standard-telemetry/fail", body, key)).status, 409);
+    assert.deepEqual(events, [
+      ["standard.claim", "acquired"],
+      ["standard.execute", "completed"],
+      ["standard.claim", "replayed"],
+      ["standard.claim", "acquired"],
+      ["standard.execute", "unconfirmed"],
+      ["standard.claim", "uncertain"],
+    ]);
+  } finally { stop(); }
 });
 
 test("HTTP missing key, malformed JSON and different fingerprint reject before callback", async () => {

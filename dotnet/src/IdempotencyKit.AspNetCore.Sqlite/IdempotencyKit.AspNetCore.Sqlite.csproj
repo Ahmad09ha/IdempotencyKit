@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <Description>SQLite Transactional-mode HTTP endpoints for ASP.NET Core.</Description>
   </PropertyGroup>
   <ItemGroup>

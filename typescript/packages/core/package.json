@@ -1,6 +1,6 @@
 {
   "name": "@idempotencykit/core",
-  "version": "0.0.0",
+  "version": "0.1.0-preview.1",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -16,5 +16,22 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
+  },
+  "description": "Scoped request identity, SHA-256 fingerprints and idempotency contracts.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",
+    "directory": "typescript/packages/core"
+  },
+  "homepage": "https://github.com/Ahmad09ha/IdempotencyKit#readme",
+  "bugs": {
+    "url": "https://github.com/Ahmad09ha/IdempotencyKit/issues"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "@types/node": "^24.0.0"
   }
 }

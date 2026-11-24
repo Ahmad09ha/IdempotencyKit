@@ -6,8 +6,10 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { defer, lastValueFrom, Observable } from "rxjs";
+import { performance } from "node:perf_hooks";
 import {
   computeRequestFingerprint, computeScopeKey,
+  observeIdempotencyClaim, recordIdempotencyStandardExecution,
 } from "@idempotencykit/core";
 import type { StoredHttpResponse } from "@idempotencykit/core";
 import { IDEMPOTENCY_HTTP_OPTIONS } from "./idempotency-options.js";
@@ -132,10 +134,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     let decision;
     try {
-      decision = await this.options.store.tryClaim(
-        scopeKey, fingerprint, this.options.leaseMs ?? 30_000);
-    } catch (error) {
-      this.logger.error("PostgreSQL idempotency claim failed.");
+      decision = await observeIdempotencyClaim(() => this.options.store.tryClaim(
+        scopeKey, fingerprint, this.options.leaseMs ?? 30_000));
+    } catch {
+      this.logger.error("Idempotency store claim failed.");
       throw new ServiceUnavailableException({ code: "IDEMPOTENCY_STORAGE_UNAVAILABLE" });
     }
 
@@ -177,6 +179,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
     next: CallHandler, res: HttpResponse,
     scopeKey: string, fingerprint: string, ownerToken: string,
   ): Promise<unknown> {
+    const startedAt = performance.now();
+    let persisted = false;
     try {
       const value: unknown = await lastValueFrom(next.handle());
       if (res.headersSent || res.statusCode < 200 || res.statusCode > 299)
@@ -216,8 +220,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
         scopeKey, fingerprint, ownerToken, response,
         this.options.retentionMs ?? 86_400_000);
       if (!saved) throw new Error("Idempotency completion/owner lease failed.");
+      persisted = true;
       return value;
-    } catch (error) {
+    } catch {
       // A handler can commit business data and fail after it. Never reexecute
       // on a new request just because response persistence was unsuccessful.
       try {
@@ -227,6 +232,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
       }
       this.logger.error("Protected handler did not produce a durable replayable result.");
       throw new ServiceUnavailableException({ code: "IDEMPOTENCY_EXECUTION_UNCERTAIN" });
+    } finally {
+      recordIdempotencyStandardExecution(startedAt, persisted);
     }
   }
 }

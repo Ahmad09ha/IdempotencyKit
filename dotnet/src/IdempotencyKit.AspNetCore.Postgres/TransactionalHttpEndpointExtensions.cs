@@ -97,7 +97,7 @@ public static class TransactionalHttpEndpointExtensions
             try { allowed = await authorize(http, ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                logger.LogError(error, "Operation authorization check failed.");
+                logger.LogError("Operation authorization check failed.");
                 await WriteProblemAsync(http, 503, "IDEMPOTENCY_AUTHORIZATION_UNAVAILABLE",
                     "Could not check operation permissions.");
                 return;
@@ -110,20 +110,21 @@ public static class TransactionalHttpEndpointExtensions
             }
         }
 
-        TransactionalIdempotencyResult result;
+        TransactionalExecutionResult result;
         try
         {
-            result = await executor.ExecuteAsync(input.ScopeKeyHash,
-                input.RequestFingerprint,
-                (connection, transaction, token) => operation(
-                    http, input.BodyJson, connection, transaction, token),
-                options.Retention, ct);
+            result = await IdempotencyTelemetry.ObserveTransactionAsync(() =>
+                ((ITransactionalIdempotencyExecutor<NpgsqlConnection, NpgsqlTransaction>)executor)
+                    .ExecuteAsync(input.ScopeKeyHash, input.RequestFingerprint,
+                        (connection, transaction, token) => operation(
+                            http, input.BodyJson, connection, transaction, token),
+                        options.Retention, ct));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // The commit acknowledgement might be ambiguous. Do not run the
             // callback a second time. Client must retry with the SAME key.
-            logger.LogError(error, "Transactional execution failed or COMMIT is ambiguous.");
+            logger.LogError("Transactional execution failed or COMMIT is ambiguous.");
             await WriteProblemAsync(http, 503, "IDEMPOTENCY_TRANSACTION_UNAVAILABLE",
                 "Transaction failed or its outcome cannot be confirmed. Retry the same key.");
             return;
@@ -131,8 +132,8 @@ public static class TransactionalHttpEndpointExtensions
 
         switch (result.Status)
         {
-            case TransactionalIdempotencyStatus.Executed:
-            case TransactionalIdempotencyStatus.Replayed:
+            case TransactionalExecutionStatus.Executed:
+            case TransactionalExecutionStatus.Replayed:
                 if (result.Response is null)
                 {
                     await WriteProblemAsync(http, 503, "IDEMPOTENCY_MISSING_RESULT",
@@ -141,16 +142,16 @@ public static class TransactionalHttpEndpointExtensions
                 }
                 await WriteResponseAsync(http, result.Response);
                 return;
-            case TransactionalIdempotencyStatus.InProgress:
+            case TransactionalExecutionStatus.InProgress:
                 http.Response.Headers["Retry-After"] = "1";
                 await WriteProblemAsync(http, 409, "IDEMPOTENCY_IN_PROGRESS",
                     "A matching operation is currently processing.");
                 return;
-            case TransactionalIdempotencyStatus.Uncertain:
+            case TransactionalExecutionStatus.Uncertain:
                 await WriteProblemAsync(http, 409, "IDEMPOTENCY_OUTCOME_UNCERTAIN",
                     "Previous operation outcome requires reconciliation.");
                 return;
-            case TransactionalIdempotencyStatus.FingerprintMismatch:
+            case TransactionalExecutionStatus.FingerprintMismatch:
                 await WriteProblemAsync(http, 422, "IDEMPOTENCY_FINGERPRINT_MISMATCH",
                     "The key was already used for a different request.");
                 return;

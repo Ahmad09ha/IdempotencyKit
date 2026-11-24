@@ -14,3 +14,11 @@ export type {
   TransactionalIdempotencyExecutor, TransactionalIdempotencyStatus,
   TransactionalIdempotencyResult,
 } from "./transactional-executor.js";
+
+export {
+  subscribeIdempotencyTelemetry, observeIdempotencyClaim,
+  observeIdempotencyTransaction, recordIdempotencyStandardExecution,
+} from "./telemetry.js";
+export type {
+  IdempotencyTelemetryEvent, IdempotencyTelemetryStage, IdempotencyTelemetryOutcome,
+} from "./telemetry.js";
