@@ -9,3 +9,5 @@
 - Reliability verification covers real Kestrel and NestJS process-crash cases, both runtimes cooperating on the same local SQLite file and shared PostgreSQL/SQL Server HTTP replay, contention and mixed-runtime recovery. Linux SQLite permission faults and safe retry are tested. See the detailed [verification evidence](docs/VERIFICATION.md) for tested boundaries.
 
 The existing versioned database migrations are unchanged. Embedded or packaged migrations are not applied automatically on package installation. Preview API compatibility may change; use explicit version pins when testing.
+
+- Final readiness: reject unsupported JSON wire statuses and nonportable replay headers; verified real isolated ext4 ENOSPC recovery, six 60-second soak runs and the provider quick-start matrix. The release remains an unpublished preview candidate.

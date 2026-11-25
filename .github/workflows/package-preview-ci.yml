@@ -39,6 +39,40 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm run pack:smoke
+        env:
+          IDEMPOTENCYKIT_PACK_OUTPUT: ../artifacts/npm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-preview
+          path: artifacts/npm/*.tgz
+          if-no-files-found: error
+
+  distribution-preflight:
+    name: Verified artifact inventory and public registry preflight
+    needs: [nuget, npm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-preview
+          path: artifacts/nuget
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-preview
+          path: artifacts/npm
+      - name: Verify exact package family and record source and SHA-256
+        run: python3 scripts/release-preflight.py inventory artifacts --source "$GITHUB_SHA"
+      - name: Read public registry metadata (no credentials, no reservation)
+        run: python3 scripts/release-preflight.py registry artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution-preflight
+          path: |
+            artifacts/release-manifest.json
+            artifacts/SHA256SUMS
+            artifacts/registry-preflight.json
+          if-no-files-found: error
 
   orders:
     name: SQLite Orders demos over real HTTP
