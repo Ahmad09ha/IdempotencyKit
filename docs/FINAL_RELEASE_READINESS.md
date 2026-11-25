@@ -1,6 +1,6 @@
 # Final release readiness — preview candidate
 
-Status at implementation: verification pending; no packages published.
+Status: PR #17 passed all nine exact-head workflows and was merged as `88f593f`; no packages published.
 
 ## Focused security review and evidence register
 
@@ -28,3 +28,16 @@ Primary sources and engineering implications: [RFC 9110 sections 15.3.5–7](htt
 The new readiness workflow mounts a 32 MiB ext4 filesystem on a regular temporary image file in the hosted runner. It never formats a device or fills the host filesystem. Both SQLite sample processes use local files on that image. Real writes hit ENOSPC (also proven by a second independent write); a new key must return 503, a readable completed result may replay exactly or return 503, and freeing the fixture file must restore same-key recovery with one durable write. This verifies an actual isolated filesystem capacity fault, not physical device failure, power loss, disk firmware or production quota behavior.
 
 The six runtime/provider combinations run 16 closed-loop clients for **at least 60 seconds each** by default, with optional 180/300-second manually triggered jobs. Fixed replay keys and up to 512 fresh keys bound retained test data. Sample every ten seconds; record raw HTTP status counts, approximate histogram upper-bound latency percentiles, elapsed time, sampled RSS, and relational Node pool occupancy/drain. Read back every new key and original replay after the timed window; verify distinct order count. No timed transport errors allowed. Node relational RSS includes the test client. These are time-based CI soak checks, not a multi-hour leak test, performance guarantee or independent review. The PostgreSQL/SQL Server live HTTP fixtures also try 204/205/206 and non-ASCII headers after a business INSERT, verify 503 and no committed state, then perform a safe retry.
+
+## Observed final readiness evidence
+
+[PR #17](https://github.com/Ahmad09ha/IdempotencyKit/pull/17), verified source `d385771f22e4cac9fa56e700cd0f1b72716bf2ab`: [final readiness CI](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45611565795) passed all three jobs and the other eight regression/audit/package workflows passed. Both relational jobs rejected invalid JSON wire statuses/nonportable headers before commit. Both SQLite processes hit actual independent ext4 ENOSPC (fresh key 503, existing key 201), then restored one-write same-key recovery after freeing the fixture.
+
+| Provider | .NET attempts in 60s | Node attempts in 60s |
+| --- | ---: | ---: |
+| PostgreSQL | 146891 | 91534 |
+| SQL Server | 73815 | 34143 |
+| SQLite | 130768 | 113941 |
+| Total | 351474 | 239618 |
+
+591,092 measured attempts across six windows, 586,471 HTTP 201 and 4,621 intentional 422; 3,019 verified distinct orders including warm-ups. No unexpected statuses or transport errors in these windows. Both relational Node pools drained after load. Five stress-only tests in each relational readiness job were intentionally skipped and separately covered by the successful stress workflow. Sampled RSS is not a multi-hour memory-leak proof. An independent review and publication approval remain open.

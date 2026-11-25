@@ -321,3 +321,7 @@ The .NET total comprises 7 core tests, 12 PostgreSQL store/transactional tests, 
 **Conclusion:** the database callback APIs have verified atomicity for supported PostgreSQL SQL operations in the tested cases. Do not upgrade this evidence into network-level or external side-effect exactly-once claims.
 
 See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md), [Guarantees](../spec/GUARANTEES.md), and [Failure Matrix](../spec/FAILURE_MATRIX.md).
+
+## 2026-11-25 — Final release readiness
+
+[PR #17](https://github.com/Ahmad09ha/IdempotencyKit/pull/17), merged `88f593f`: all nine source-head workflows passed, including [real wire, isolated ENOSPC and time-based soak](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45611565795). See [observed final readiness evidence](FINAL_RELEASE_READINESS.md) for 591,092 measured attempts, actual storage faults, durable recovery and limitations. No registry publication or independent audit.

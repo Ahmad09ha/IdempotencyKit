@@ -1,8 +1,8 @@
 import { equal, ok } from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile, mkdir, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspace = fileURLToPath(new URL("../", import.meta.url));
@@ -72,6 +72,15 @@ assert.equal(claim.status, "acquired");
   run([join(workspace, "node_modules/typescript/bin/tsc"), "--ignoreConfig",
     "--strict", "--module", "NodeNext", "--target", "ES2022", "smoke.ts"]);
   run(["smoke.js"]);
+  // Export the exact archives that passed the isolated consumer check, not a
+  // second build. The optional destination must be new or empty.
+  if (process.env.IDEMPOTENCYKIT_PACK_OUTPUT) {
+    const output = resolve(workspace, process.env.IDEMPOTENCYKIT_PACK_OUTPUT);
+    await mkdir(output, { recursive: true });
+    equal((await readdir(output)).length, 0, "Package output must be empty");
+    for (const archive of archives) await copyFile(archive, join(output, basename(archive)));
+    console.log("Verified npm archives retained at " + output);
+  }
   console.log("8 npm tarballs passed standalone install, type, runtime and SQLite smoke checks.");
 } finally {
   await rm(scratch, { recursive: true, force: true });
