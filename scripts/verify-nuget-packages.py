@@ -29,6 +29,9 @@ for file in sorted(feed.glob("*.nupkg")):
         description = meta.findtext("{*}description")
         assert name in projects and name not in metadata, f"Unexpected package {name}."
         assert version and description, f"{name}: missing version or description."
+        license_element = meta.find("{*}license")
+        assert license_element is not None and license_element.attrib.get("type") == "expression" and license_element.text == "MIT", f"{name}: expected MIT SPDX expression."
+        assert "LICENSE" in assets and archive.read("LICENSE") == (root / "LICENSE").read_bytes(), f"{name}: missing or mismatched MIT text."
         versions.add(version)
         descriptions.add(description)
         metadata[name] = version

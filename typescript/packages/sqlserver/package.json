@@ -25,7 +25,7 @@
     "mssql": "^12.8.1"
   },
   "description": "SQL Server 2022 Standard and Transactional idempotency stores.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",

@@ -1,6 +1,6 @@
 import { equal, ok } from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readdir, rm, writeFile, mkdir, copyFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile, mkdir, copyFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,12 +26,19 @@ function run(args, cwd = scratch, json = false) {
 
 try {
   const archives = [];
+  const license = await readFile(join(workspace, "../LICENSE"), "utf8");
+  const lock = JSON.parse(await readFile(join(workspace, "package-lock.json"), "utf8"));
   for (const name of packages) {
+    const dir = join(workspace, "packages", name);
+    const manifest = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
+    equal(manifest.license, "MIT");
+    equal(lock.packages["packages/" + name].license, "MIT");
+    equal(await readFile(join(dir, "LICENSE"), "utf8"), license, name + " license must match root");
     const [pack] = run([npm, "pack", "--json", "--workspace", `@idempotencykit/${name}`,
       "--pack-destination", scratch], workspace, true);
     equal(pack.name, `@idempotencykit/${name}`);
     const paths = pack.files.map(({ path }) => path);
-    for (const file of ["package.json", "README.md", "dist/index.js", "dist/index.d.ts"]) {
+    for (const file of ["package.json", "README.md", "LICENSE", "dist/index.js", "dist/index.d.ts"]) {
       ok(paths.includes(file), `${pack.name} missing ${file}`);
     }
     ok(paths.every(path => path === "README.md" || path === "package.json" ||

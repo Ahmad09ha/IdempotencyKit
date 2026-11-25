@@ -31,7 +31,7 @@
     "node": ">=24.0.0"
   },
   "description": "Explicit transactional HTTP idempotency for NestJS Express and local-file SQLite.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",

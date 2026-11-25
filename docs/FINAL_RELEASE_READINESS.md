@@ -21,7 +21,7 @@ Primary sources and engineering implications: [RFC 9110 sections 15.3.5–7](htt
 - Real database regression, process crash, mixed-runtime and stress/outage tests; package install and dependency checks.
 - Isolated filesystem ENOSPC verification; extended soak with actual duration, error counts and sampled memory. No claim of physical-device failure or leak freedom.
 - Developer quick-start and existing API/operations guides aligned to source, with sample authentication explicitly non-production.
-- Before publication: independent review disposition, maintainer-approved license, registry ownership, release identity, immutable version and publication approval. No automatic registry publishing or new version in this change.
+- Before publication: independent review disposition, registry ownership, release identity, immutable version and publication approval. The maintainer selected MIT on 2026-11-25. The existing public NuGet ID `IdempotencyKit.AspNetCore` requires resolution. No automatic registry publishing or new version in this change.
 
 ## Filesystem and time-based soak labs
 

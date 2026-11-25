@@ -1,5 +1,7 @@
 # IdempotencyKit for .NET
 
+MIT-licensed project source; see the `LICENSE` in this package. Third-party dependencies retain their own license terms.
+
 Preview packages target .NET 10. IdempotencyKit helps write APIs recognize a retry and replay a recorded HTTP response without repeating a committed business write **when that write and its response share one supported database transaction**.
 
 - Core and ASP.NET Core Standard mode: scoped request keys, fingerprints, leases and HTTP response replay. A crash can leave the business outcome uncertain.
