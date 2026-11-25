@@ -8,7 +8,7 @@ This adds HTTP request protection to the existing scoped SHA-256 fingerprint and
 
 A protected route requires an authenticated caller and one `Idempotency-Key`. On a new key, it attempts an atomic PostgreSQL claim. On a completed matching request, it replays the stored response without calling the handler again. Mismatched fingerprints and in-progress requests fail before the handler runs. A handler exception or unsupported result is treated as **uncertain**; it is not automatically re-executed.
 
-The implementation supports authenticated JSON `POST`, `PUT` and `PATCH` routes, with request bodies up to **64 KiB** and successful 2xx JSON responses up to **256 KiB**. Raw streaming/manual responses, multipart, and arbitrary custom serializers are not supported.
+The implementation supports authenticated JSON `POST`, `PUT` and `PATCH` routes, with request bodies up to **64 KiB** and successful 2xx JSON responses up to **256 KiB**. Replayable responses must contain actual JSON: 204/205 (no content) and 206 (range response) are unsupported. Portable replay header values and content type use ASCII printable characters or horizontal tab; percent-encode non-ASCII URI paths. Raw streaming/manual responses, multipart, and arbitrary custom serializers are not supported.
 
 ## Before using either framework
 
@@ -19,7 +19,7 @@ The implementation supports authenticated JSON `POST`, `PUT` and `PATCH` routes,
 5. Run a job calling the store's expired-completed cleanup API; this integration does not schedule cleanup.
 6. Monitor uncertain records and implement application-specific reconciliation. **Never automatically retry unknown business effects.**
 
-Packages are currently local workspace projects (`IsPackable=false` on .NET; `private=true` on npm). The snippets below use implemented API names; their user authentication and domain handlers remain application-defined.
+Packages can be built and packed locally as preview artifacts; they are not published. npm library manifests still have `private=true`. The snippets below use implemented API names; their user authentication and domain handlers remain application-defined.
 
 ## ASP.NET Core 10
 

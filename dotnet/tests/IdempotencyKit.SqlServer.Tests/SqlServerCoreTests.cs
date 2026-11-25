@@ -472,6 +472,12 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
         var valid = Response(1, 2);
         var invalid = new[]
         {
+            valid with { StatusCode = 204 },
+            valid with { StatusCode = 205 },
+            valid with { StatusCode = 206 },
+            valid with { Headers = new Dictionary<string, string> { ["Location"] = "/orders/\u0627" } },
+            valid with { Headers = new Dictionary<string, string> { ["ETag"] = "\"caf\u00e9\"" } },
+            valid with { ContentType = "application/json; x=\u00e9" },
             valid with { Headers = new Dictionary<string, string> { ["Location"] = "/orders/\u0000bad" } },
             valid with { Headers = new Dictionary<string, string> { ["ETag"] = "bad\u0001value" } },
             valid with { ContentType = "application/json; charset=utf-8\u007f" },
@@ -509,14 +515,17 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
         // Directly corrupt completed test rows without bypassing the schema.
         // Both store and transactional replay must reject them; no callback
         // may run and the record must remain available for reconciliation.
-        var tampered = new[]
+        var tampered = new (string Headers, byte[] Body, string Type, int Status)[]
         {
-            (Headers: "{\"set-cookie\":\"fixture\"}", Body: valid.Body, Type: valid.ContentType),
-            (Headers: "{\"location\":\"bad\\u0001value\"}", Body: valid.Body, Type: valid.ContentType),
-            (Headers: "{}", Body: valid.Body, Type: "text/html"),
-            (Headers: "{}", Body: new byte[] { 0x22, 0xff, 0x22 }, Type: valid.ContentType),
-            (Headers: "{}", Body: Encoding.UTF8.GetBytes("not-json"), Type: valid.ContentType)
+            (Headers: "{\"set-cookie\":\"fixture\"}", Body: valid.Body, Type: valid.ContentType, Status: 201),
+            (Headers: "{\"location\":\"/orders/\\u0627\"}", Body: valid.Body, Type: valid.ContentType, Status: 201),
+            (Headers: "{\"location\":\"bad\\u0001value\"}", Body: valid.Body, Type: valid.ContentType, Status: 201),
+            (Headers: "{}", Body: valid.Body, Type: "text/html", Status: 201),
+            (Headers: "{}", Body: new byte[] { 0x22, 0xff, 0x22 }, Type: valid.ContentType, Status: 201),
+            (Headers: "{}", Body: Encoding.UTF8.GetBytes("not-json"), Type: valid.ContentType, Status: 201)
         };
+        tampered = [.. tampered, ("{}", valid.Body, valid.ContentType, 204),
+            ("{}", valid.Body, valid.ContentType, 205), ("{}", valid.Body, valid.ContentType, 206)];
         foreach (var bad in tampered)
         {
             var key = NewKey();
@@ -528,8 +537,9 @@ public sealed class SqlServerCoreTests(SqlServerFixture fixture)
             {
                 await connection.OpenAsync();
                 await using var command = connection.CreateCommand();
-                command.CommandText = "UPDATE dbo.idempotencykit_records SET response_headers=@headers, response_body=@body, response_content_type=@type WHERE scope_key_hash=@key";
+                command.CommandText = "UPDATE dbo.idempotencykit_records SET response_status=@status, response_headers=@headers, response_body=@body, response_content_type=@type WHERE scope_key_hash=@key";
                 command.Parameters.AddWithValue("key", key);
+                command.Parameters.AddWithValue("status", bad.Status);
                 command.Parameters.AddWithValue("headers", bad.Headers);
                 command.Parameters.AddWithValue("body", bad.Body);
                 command.Parameters.AddWithValue("type", bad.Type);

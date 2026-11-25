@@ -73,14 +73,14 @@ export function prepareResponse(response: StoredHttpResponse): {
   headersJson: string; response: StoredHttpResponse;
 } {
   if (!response || !Number.isInteger(response.statusCode) ||
-      response.statusCode < 200 || response.statusCode > 299)
-    throw new Error("Only 2xx responses may be persisted.");
+      response.statusCode < 200 || response.statusCode > 299 || [204, 205, 206].includes(response.statusCode))
+    throw new Error("Only JSON 2xx responses excluding 204, 205 and 206 may be persisted.");
   if (!(response.body instanceof Uint8Array) ||
       response.body.byteLength > MAX_RESPONSE_BYTES)
     throw new Error("Response must contain <=256 KiB of bytes.");
   if (typeof response.contentType !== "string" ||
       response.contentType.length > 128 ||
-      /[\x00-\x08\x0a-\x1f\x7f]/.test(response.contentType) ||
+      /[\x00-\x08\x0a-\x1f\x7f-\uffff]/.test(response.contentType) ||
       !["application/json", "application/problem+json"].includes(
         response.contentType.split(";")[0]!.trim().toLowerCase()))
     throw new Error("Only safe JSON content types may be persisted.");
@@ -96,7 +96,7 @@ export function prepareResponse(response: StoredHttpResponse): {
     const key = original.toLowerCase();
     if (!SAFE_HEADERS.has(key) || Object.hasOwn(headers, key))
       throw new Error("Unsafe/duplicate response header.");
-    if (typeof value !== "string" || value.length > 4096 || /[\x00-\x08\x0a-\x1f\x7f]/.test(value))
+    if (typeof value !== "string" || value.length > 4096 || /[\x00-\x08\x0a-\x1f\x7f-\uffff]/.test(value))
       throw new Error("Unsafe response header value.");
     headers[key] = value;
   }

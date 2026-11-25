@@ -214,12 +214,12 @@ function validateMs(value: number, maximum: number): void {
 
 export function validateResponse(response: StoredHttpResponse): Record<string, string> {
   if (!response || !Number.isInteger(response.statusCode) ||
-      response.statusCode < 200 || response.statusCode > 299)
-    throw new Error("Only 2xx completed responses can be stored.");
+      response.statusCode < 200 || response.statusCode > 299 || [204, 205, 206].includes(response.statusCode))
+    throw new Error("Only JSON 2xx responses excluding 204, 205 and 206 may be persisted.");
   if (!(response.body instanceof Uint8Array) || response.body.byteLength > MAX_BODY_BYTES)
     throw new Error("Response body exceeds 256 KiB or is invalid.");
   if (typeof response.contentType !== "string" ||
-      response.contentType.length > 128 || /[\x00-\x08\x0a-\x1f\x7f]/.test(response.contentType) ||
+      response.contentType.length > 128 || /[\x00-\x08\x0a-\x1f\x7f-\uffff]/.test(response.contentType) ||
       !["application/json", "application/problem+json"].includes(
         response.contentType.split(";")[0]!.trim().toLowerCase()))
     throw new Error("Only JSON responses can be stored.");
@@ -234,7 +234,7 @@ export function validateResponse(response: StoredHttpResponse): Record<string, s
     const name = original.toLowerCase();
     if (!SAFE_HEADERS.has(name) || Object.hasOwn(safe, name))
       throw new Error("Unsafe or duplicate response header: " + original);
-    if (typeof value !== "string" || value.length > 4096 || /[\x00-\x08\x0a-\x1f\x7f]/.test(value))
+    if (typeof value !== "string" || value.length > 4096 || /[\x00-\x08\x0a-\x1f\x7f-\uffff]/.test(value))
       throw new Error("Unsafe response header value.");
     safe[name] = value;
   }
