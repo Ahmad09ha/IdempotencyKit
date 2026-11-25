@@ -52,13 +52,22 @@ try{
     catch(e){if(e.code!=="ENOSPC")throw e;exhausted=true;break;}
   }
   assert.ok(exhausted,"No real OS ENOSPC");
-  // A distinct file/operation proves the space failure applies to the volume.
+  // A large allocation can fail while a small extent is still available
+  // (fragmentation, metadata and delayed allocation). Drain the remainder
+  // with actual filesystem-block writes to a separate file, then require
+  // a real ENOSPC on that independent allocation. Keep both files in place.
+  let proofExhausted=false,proofBytes=0;
   try{
     proofFd=openSync(probe,"wx");
-    writeSync(proofFd,Buffer.alloc(4096,0xb6));fsyncSync(proofFd);
-    assert.fail("Expected ENOSPC on independent allocation");
-  }catch(e){assert.equal(e.code,"ENOSPC");}
+    const block=Buffer.alloc(fs.bsize,0xb6);
+    while(proofBytes<40*1024*1024-written){
+      const n=writeSync(proofFd,block);assert.ok(n>0);
+      proofBytes+=n;fsyncSync(proofFd);
+    }
+  }catch(e){if(e.code!=="ENOSPC")throw e;proofExhausted=true;}
   finally{if(proofFd!==undefined){closeSync(proofFd);proofFd=undefined;}}
+  assert.ok(proofExhausted,"Expected ENOSPC on independent block allocation");
+  written+=proofBytes;
   unavailable(await post(fresh));
   const replay=await post(old);
   if(replay.status===201)assert.deepEqual(replay,original);else unavailable(replay);
