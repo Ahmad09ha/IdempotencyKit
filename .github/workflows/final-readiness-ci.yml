@@ -1,0 +1,153 @@
+name: Final Release Readiness CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Soak duration per runtime (60 to 300 seconds)
+        default: '60'
+        type: choice
+        options: ['60', '180', '300']
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    name: ASP.NET + NestJS on one PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: idk_interop
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d idk_interop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      IDEMPOTENCYKIT_PERF_BASELINE: "1"
+      IDEMPOTENCYKIT_SOAK_SECONDS: ${{ inputs.seconds || '60' }}
+      IDEMPOTENCYKIT_INTEROP_PROVIDER: postgres
+      IDEMPOTENCYKIT_INTEROP_POSTGRES_URL: postgresql://postgres:testpass@127.0.0.1:5432/idk_interop
+      IDEMPOTENCYKIT_INTEROP_DOTNET_DB: Host=127.0.0.1;Port=5432;Database=idk_interop;Username=postgres;Password=testpass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the actual Kestrel test host
+        run: dotnet build dotnet/tests/fixtures/IdempotencyKit.Relational.CrashHost -c Release
+      - name: Build Node workspace
+        working-directory: typescript
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run build
+      - name: Real HTTP wire and soak tests against PostgreSQL
+        working-directory: typescript
+        run: node --test tests/relational-interop/shared-http.test.mjs
+
+  sqlserver:
+    name: ASP.NET + NestJS on one SQL Server 2022
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SqlServerTest_Strong!2026"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+    env:
+      IDEMPOTENCYKIT_PERF_BASELINE: "1"
+      IDEMPOTENCYKIT_SOAK_SECONDS: ${{ inputs.seconds || '60' }}
+      IDEMPOTENCYKIT_INTEROP_PROVIDER: sqlserver
+      IDEMPOTENCYKIT_INTEROP_SQLSERVER_PASSWORD: "SqlServerTest_Strong!2026"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the actual Kestrel test host
+        run: dotnet build dotnet/tests/fixtures/IdempotencyKit.Relational.CrashHost -c Release
+      - name: Build Node workspace
+        working-directory: typescript
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run build
+      - name: Real HTTP wire and soak tests against SQL Server
+        working-directory: typescript
+        run: node --test tests/relational-interop/shared-http.test.mjs
+
+  sqlite:
+    name: SQLite isolated ext4 ENOSPC and separate-process soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      IDEMPOTENCYKIT_SOAK_SECONDS: ${{ inputs.seconds || '60' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: typescript/.nvmrc
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - run: dotnet build dotnet/samples/Orders.AspNetCore/Orders.AspNetCore.csproj --configuration Release
+      - run: npm ci --no-audit --no-fund && npm run build
+        working-directory: typescript
+      - name: Exercise both runtimes on a 32 MiB disposable ext4 filesystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          lab=$(mktemp -d /tmp/idk-full.XXXXXXXX)
+          mkdir "$lab/mount"
+          dotnet_pid= nest_pid=
+          cleanup() {
+            code=$?
+            for pid in "$dotnet_pid" "$nest_pid"; do
+              if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
+            done
+            if (( code != 0 )); then tail -n 100 "$lab/"*.log 2>/dev/null || true; fi
+            if mountpoint -q "$lab/mount"; then sudo umount "$lab/mount" || exit 1; fi
+            rm -rf "$lab"
+            exit "$code"
+          }
+          trap cleanup EXIT
+          # Never format a device or consume the runner's entire filesystem.
+          truncate -s 32M "$lab/image.ext4"
+          mkfs.ext4 -q -F -m 0 "$lab/image.ext4"
+          sudo mount -o loop,nosuid,nodev,noexec "$lab/image.ext4" "$lab/mount"
+          sudo chown "$(id -u):$(id -g)" "$lab/mount"
+          test "$(findmnt -n -o FSTYPE --target "$lab/mount")" = ext4
+          ORDERS_DB_PATH="$lab/mount/dotnet.db" PORT=5050 dotnet dotnet/samples/Orders.AspNetCore/bin/Release/net10.0/Orders.AspNetCore.dll >"$lab/dotnet.log" 2>&1 &
+          dotnet_pid=$!
+          ORDERS_DB_PATH="$lab/mount/nest.db" PORT=3000 node typescript/apps/orders-api/dist/main.js >"$lab/nest.log" 2>&1 &
+          nest_pid=$!
+          for port in 5050 3000; do
+            curl --silent --show-error --fail --retry 25 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$port/health"
+          done
+          export IDEMPOTENCYKIT_ISOLATED_FULL=1
+          node typescript/tests/support/sqlite-filesystem-full.mjs dotnet 5050 "$lab/mount" "$lab/mount/dotnet.db"
+          node typescript/tests/support/sqlite-filesystem-full.mjs node 3000 "$lab/mount" "$lab/mount/nest.db"
+          node typescript/tests/support/sqlite-performance-baseline.mjs dotnet 5050 "$dotnet_pid" soak
+          node typescript/tests/support/sqlite-performance-baseline.mjs node 3000 "$nest_pid" soak

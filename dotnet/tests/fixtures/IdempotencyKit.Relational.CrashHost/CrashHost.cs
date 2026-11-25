@@ -108,9 +108,20 @@ public static class RelationalCrashFixture
             await Task.Delay(TimeSpan.FromSeconds(12), ct);
         }
 
-        return new StoredHttpResponse(201, "application/json",
+        var status = 201;
+        var location = Route + "/" + id;
+        // Test-only response injection after the real business INSERT.
+        if (json.RootElement.TryGetProperty("fixtureResponse", out var fixture))
+        {
+            if (fixture.ValueKind == JsonValueKind.Number && fixture.TryGetInt32(out var candidate)
+                && candidate is 204 or 205 or 206)
+                status = candidate;
+            else if (fixture.ValueKind == JsonValueKind.String && fixture.GetString() == "unicode")
+                location = Route + "/\u0627";
+        }
+        return new StoredHttpResponse(status, "application/json",
             JsonSerializer.SerializeToUtf8Bytes(new { id, quantity }),
-            new Dictionary<string, string> { ["Location"] = Route + "/" + id });
+            new Dictionary<string, string> { ["Location"] = location });
     }
 
     public static void AddParameter(DbCommand command, string name, object value)

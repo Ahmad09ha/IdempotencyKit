@@ -118,7 +118,8 @@ See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
 
 ## Phase 4 — Hardening and observability
 
-- [ ] Add fault injection, 100+ concurrent requests, two running API replicas, storage outages.
+- [x] Verify 128 concurrent clients, connection-pool exhaustion, mixed-runtime HTTP and real relational DB stop/start (PR #16).
+- [ ] Extended time-based soak, isolated ENOSPC, independent security review and remaining production topology tests (see [final readiness](FINAL_RELEASE_READINESS.md)).
 - [x] Instrument bounded Standard/Transactional HTTP outcomes and latency; document retention/cleanup monitoring.
 - [ ] Instrument provider-core callers and retention worker metrics if introduced.
 - [x] Verify tenant isolation, authorization before replay, safe headers and bounded/no-body telemetry in supported HTTP suites.

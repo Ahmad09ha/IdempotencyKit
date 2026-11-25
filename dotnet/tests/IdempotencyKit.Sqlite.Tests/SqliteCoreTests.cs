@@ -313,7 +313,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
         await using var conn=fixture.Connection();
         await conn.OpenAsync();
         await using var cmd=conn.CreateCommand();
-        cmd.CommandText="UPDATE idempotencykit_records SET response_status=@status, response_headers=@headers WHERE scope_key_hash=@key";
+        cmd.CommandText="UPDATE idempotencykit_records SET response_headers=@headers WHERE scope_key_hash=@key";
         cmd.Parameters.AddWithValue("@key",key);
         cmd.Parameters.AddWithValue("@headers","{\"set-cookie\":\"secret=1\"}");
         await cmd.ExecuteNonQueryAsync();
@@ -433,7 +433,7 @@ public sealed class SqliteCoreTests(FileSqliteFixture fixture)
             {
                 await connection.OpenAsync();
                 await using var command = connection.CreateCommand();
-                command.CommandText = "UPDATE idempotencykit_records SET response_headers=@headers, response_body=@body, response_content_type=@type WHERE scope_key_hash=@key";
+                command.CommandText = "UPDATE idempotencykit_records SET response_status=@status, response_headers=@headers, response_body=@body, response_content_type=@type WHERE scope_key_hash=@key";
                 command.Parameters.AddWithValue("key", key);
                 command.Parameters.AddWithValue("status", bad.Status);
                 command.Parameters.AddWithValue("headers", bad.Headers);
