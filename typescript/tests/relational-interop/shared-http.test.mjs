@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { runHttpBaseline, readRssMiB } from "../support/http-performance-baseline.mjs";
 import { runSustainedHttpStress } from "../support/http-sustained-stress.mjs";
+import { runHttpSoak, soakSeconds } from "../support/http-soak.mjs";
 import pg from "pg";
 import sql from "mssql";
 import {
@@ -217,7 +218,7 @@ class Orders {
     return this.service.handleExpress(req, res, operationId, async (transaction, raw, request) => {
       const id = randomUUID().replaceAll("-", "");
       const key = request.headers["idempotency-key"];
-      const { quantity } = JSON.parse(raw);
+      const { quantity, fixtureResponse } = JSON.parse(raw);
       if (pgMode) {
         await transaction.query("INSERT INTO ik_crash_orders (id, request_key, quantity) VALUES ($1,$2,$3)",
           [id, key, quantity]);
@@ -231,9 +232,11 @@ class Orders {
         activeGate.entered.resolve();
         await bounded(activeGate.release.promise, 18000, "Test did not release held transaction");
       }
-      return { statusCode: 201, contentType: "application/json",
+      // Fixture-only response injection verifies rollback at the real HTTP boundary.
+      return { statusCode: [204,205,206].includes(fixtureResponse) ? fixtureResponse : 201,
+        contentType: "application/json",
         body: Buffer.from(JSON.stringify({ id, quantity })),
-        headers: { Location: route + "/" + id } };
+        headers: { Location: fixtureResponse === "unicode" ? route + "/\u0627" : route + "/" + id } };
     });
   }
 }
@@ -601,4 +604,33 @@ test("read-only operational health report classifies live, expired and uncertain
       return states;
     },
   });
+});
+
+test("impossible JSON wire statuses and nonportable headers fail before HTTP commit", {timeout:60000},async()=>{
+  for(const base of [dotnetBase,nestBase]){
+    for(const fixtureResponse of [204,205,206,"unicode"]){
+      const k=newKey(),raw=JSON.stringify({quantity:2,productId:50,fixtureResponse});
+      assertUnavailable(await request(base,k,raw));
+      const state=await readState(k);
+      assert.equal(state.orders.length,0);
+      assert.equal(state.records.length,0);
+      const recovered=await request(base,k);
+      assertCreated(recovered);
+      assertReplay(await request(base===dotnetBase?nestBase:dotnetBase,k,reordered),recovered);
+      await assertDurable(k,recovered);
+    }
+  }
+});
+test("time-bounded soak with sampled memory and drained pools", {skip:soakSeconds()===0,timeout:900000},async()=>{
+  for(const [runtime,base,pid,memScope] of [
+    ["dotnet",dotnetBase,runningHost.pid,"Kestrel process RSS"],
+    ["node",nestBase,process.pid,"NestJS + test/load-client process RSS"],
+  ]){
+    await runHttpSoak({provider,runtime,
+      request:(k,kind)=>request(base,k,kind==="changed"?changed:kind==="reordered"?reordered:body),
+      verify:assertDurable,readRss:()=>readRssMiB(pid),memScope,
+      readPool:runtime==="node"?()=>pgMode?
+        {total:pool.totalCount,idle:pool.idleCount,waiting:pool.waitingCount}:
+        {size:pool.size,available:pool.available,borrowed:pool.borrowed,pending:pool.pending}:()=>null});
+  }
 });

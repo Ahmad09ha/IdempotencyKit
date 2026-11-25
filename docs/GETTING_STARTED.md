@@ -1,5 +1,7 @@
 # Getting Started
 
+**Start here:** [Provider quick-start matrix](QUICK_START.md) for all six framework/provider combinations, packages, migrations, actual test commands and retry handling. All packages are currently unpublished preview artifacts.
+
 ## Run the Orders demos
 
 The two examples use **separate local SQLite files and a local-only demo token**. They are not production authentication examples. No database server or published package is needed. From the repository root, start either app:

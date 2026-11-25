@@ -17,7 +17,7 @@
 
 ## Storage and data lifecycle
 
-- Durable uniqueness and atomicity depend on real PostgreSQL transactions/constraints.
+- Durable uniqueness and same-database atomicity depend on the real provider's transactions/constraints (PostgreSQL, SQL Server or local-file SQLite).
 - Define retention guarantees for **completed**, **processing**, and **uncertain** records separately.
 - Expired records can be purged only after the replay window and outstanding recovery requirements are met.
 - Replaying a key after expiry may be a fresh command; domain-level uniqueness must still cover operations such as financial transfer/checkouts.
@@ -62,3 +62,5 @@ Metric labels must remain low-cardinality: avoid raw keys, user IDs, request bod
 - [ ] Documented recovery and retention runbook.
 - [ ] Package dependency and license review.
 - [ ] Verifiable, dated results for supported operating environments.
+
+See [Final release readiness](FINAL_RELEASE_READINESS.md) for the current review register. An independent human security review remains a separate release gate.

@@ -286,6 +286,12 @@ integration("tampered completed headers are rejected rather than replayed", asyn
 integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", async () => {
   const valid = response(1,2);
   const invalid = [
+    {...valid,statusCode:204},
+    {...valid,statusCode:205},
+    {...valid,statusCode:206},
+    {...valid,headers:{Location:"/orders/\u0627"}},
+    {...valid,headers:{ETag:'"caf\u00e9"'}},
+    {...valid,contentType:"application/json; x=\u00e9"},
     {...valid,headers:{Location:"/orders/\u0000bad"}},
     {...valid,headers:{ETag:"bad\u0001value"}},
     {...valid,contentType:"application/json; charset=utf-8\u007f"},
@@ -311,6 +317,8 @@ integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", as
     assert.equal(await count("idempotencykit_records",txKey),0);
   }
   const tampered=[
+    {headers:'{"location":"/orders/\\u0627"}',body:valid.body,type:valid.contentType},
+    ...[204,205,206].map(status=>({headers:"{}",body:valid.body,type:valid.contentType,status})),
     {headers:'{"set-cookie":"fixture"}',body:valid.body,type:valid.contentType},
     {headers:'{"location":"bad\\u0001value"}',body:valid.body,type:valid.contentType},
     {headers:"{}",body:valid.body,type:"text/html"},
@@ -322,8 +330,8 @@ integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", as
     const claim=await store.tryClaim(scope,hash,60_000);
     assert.equal(await store.tryComplete(scope,hash,claim.ownerToken,valid,3_600_000),true);
     await pool.request().input("key",sql.NVarChar(67),scope).input("headers",sql.NVarChar(sql.MAX),bad.headers)
-      .input("body",sql.VarBinary(sql.MAX),bad.body).input("type",sql.NVarChar(128),bad.type)
-      .query("UPDATE dbo.idempotencykit_records SET response_headers=@headers,response_body=@body,response_content_type=@type WHERE scope_key_hash=@key");
+      .input("body",sql.VarBinary(sql.MAX),bad.body).input("type",sql.NVarChar(128),bad.type).input("status",sql.Int,bad.status??201)
+      .query("UPDATE dbo.idempotencykit_records SET response_headers=@headers,response_body=@body,response_content_type=@type,response_status=@status WHERE scope_key_hash=@key");
     await assert.rejects(()=>store.tryClaim(scope,hash,60_000));
     let called=false;
     await assert.rejects(()=>executor.execute(scope,hash,async()=>{called=true;return valid;},3_600_000));

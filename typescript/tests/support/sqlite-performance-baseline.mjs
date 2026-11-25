@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { runHttpBaseline, readRssMiB } from "./http-performance-baseline.mjs";
 import { runSustainedHttpStress } from "./http-sustained-stress.mjs";
+import { runHttpSoak } from "./http-soak.mjs";
 
 const [runtime,portText,pidText,mode]=process.argv.slice(2);
 const stress=mode==="stress";
@@ -18,7 +19,7 @@ async function count(){
 }
 const before=await count();
 const seen=new Map();
-const result=await (stress?runSustainedHttpStress:runHttpBaseline)({provider:"sqlite",runtime,
+const result=await (mode==="soak"?runHttpSoak:stress?runSustainedHttpStress:runHttpBaseline)({provider:"sqlite",runtime,
   readRss:()=>readRssMiB(pid),memScope:"separate server process RSS",
   async request(key,alternate){
     const r=await fetch(base+"/orders",{

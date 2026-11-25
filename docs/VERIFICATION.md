@@ -5,6 +5,10 @@ This file records **observed test results**, separately from planned guarantees.
 
 
 
+## 2026-11-25 — Bounded stress, outage recovery and operational diagnostics
+
+[PR #16](https://github.com/Ahmad09ha/IdempotencyKit/pull/16) passed all eight workflows before and after merge (`158e656`), including [dedicated stress/outage](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45511557572) and [post-merge stress/outage](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45512074692). See [stress lab](STRESS_OUTAGE_LAB.md) for 251,805 timed requests and exact recovery evidence. This was bounded load, not a production certification.
+
 ## 2026-11-25 — Security and performance baseline
 
 PR [#15](https://github.com/Ahmad09ha/IdempotencyKit/pull/15), main `1218367`: all seven pre-merge and post-merge workflows passed. Six provider/runtime negative tests verify corrupted replay/invalid response rollback. The original baseline measured 1,728 HTTP attempts (all 201) with durable correctness; NuGet and both npm graphs reported zero known advisories. See [Security and performance lab](SECURITY_PERFORMANCE_LAB.md) for exact evidence and limits. No production security certification.

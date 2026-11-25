@@ -14,10 +14,10 @@ namespace IdempotencyKit.SqlServer;
 internal static class SqlServerIdempotencyPrimitives
 {
 
-    // RFC 9110 section 5.5: reject field-value control characters (HTAB
-    // is permitted). Do not rely on a web server rejecting data after COMMIT.
+    // Portable HTTP response field values: ASCII SP/VCHAR or HTAB only.
+    // Default Kestrel encoding is ASCII; do not discover an invalid header after COMMIT.
     private static bool HasInvalidFieldValue(string value) =>
-        value.Any(c => (c < ' ' && c != '\t') || c == '\u007f');
+        value.Any(c => (c < ' ' && c != '\t') || c > '\u007e');
 
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
@@ -89,8 +89,8 @@ internal static class SqlServerIdempotencyPrimitives
         PrepareResponse(StoredHttpResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
-        if (response.StatusCode is < 200 or > 299)
-            throw new ArgumentException("Only successful 2xx responses are supported.");
+        if (response.StatusCode is < 200 or > 299 or 204 or 205 or 206)
+            throw new ArgumentException("Only successful JSON 2xx responses excluding 204, 205 and 206 are supported.");
         if (response.Body is null || response.Body.Length > 262_144)
             throw new ArgumentException("Response body must be <= 256 KiB.");
         if (string.IsNullOrWhiteSpace(response.ContentType) ||

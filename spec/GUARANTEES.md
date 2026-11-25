@@ -1,6 +1,6 @@
 # Guarantees, Preconditions, and Non-Guarantees
 
-> **Mixed verification status.** Scoped fingerprints, PostgreSQL Standard mode, transactional callbacks, EF Core 10 shared transactions, and explicit ASP.NET Core/NestJS Express transactional HTTP integration now have real PostgreSQL tests. Actual NestJS HTTP-server SIGKILL before/after COMMIT is verified. This remains **not production certification**: external effects, SQL Server/SQLite, equivalent ASP.NET process-crash testing, database failover and reconciliation remain outside these claims. See [Verification Evidence](../docs/VERIFICATION.md).
+> **Verified preview scope, not production certification.** PostgreSQL, SQL Server 2022 and local-file SQLite have real database and transactional HTTP tests across ASP.NET Core and NestJS Express, including process-kill and mixed-runtime scenarios. External effects, physical power loss, production failover and automatic uncertain-state reconciliation are not certified. See [Verification Evidence](../docs/VERIFICATION.md).
 
 ## G1 — Scoped isolation
 
@@ -63,3 +63,7 @@ Different keys might describe the same business order or payment. The domain mus
 For each guarantee above, attach deterministic integration and fault tests against **real PostgreSQL**, across at least two API replicas, including intentionally killed processes at relevant boundaries. Record environment/version, test command, outcomes, known limitations and pending tests. Do not equate source code or passing mocks with proven recovery.
 
 Related: [HTTP Contract](HTTP_CONTRACT.md), [Failure Matrix](FAILURE_MATRIX.md), [Architecture](../docs/ARCHITECTURE.md).
+
+### Replayable wire responses
+
+A successful stored response must be a bounded, valid UTF-8 JSON body and safe portable headers. 204/205 cannot carry JSON; 206 requires range semantics outside this library's supported header/body contract. These statuses are rejected before transactional commit or on reading corrupted records. Header values and Content-Type must be printable ASCII or HTAB for default Kestrel and Node HTTP portability; encode international URI components. Unicode remains supported in JSON. Invalid stored rows fail closed rather than re-executing the business operation.

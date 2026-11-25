@@ -347,6 +347,12 @@ integration("SIGKILL worker AFTER COMMIT replays without reexecuting order", asy
 integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", async () => {
   const valid = {statusCode:201,contentType:"application/json",body:Buffer.from('{"id":1}'),headers:{Location:"/orders/1"}};
   const invalid = [
+    {...valid,statusCode:204},
+    {...valid,statusCode:205},
+    {...valid,statusCode:206},
+    {...valid,headers:{Location:"/orders/\u0627"}},
+    {...valid,headers:{ETag:'"caf\u00e9"'}},
+    {...valid,contentType:"application/json; x=\u00e9"},
     {...valid,headers:{Location:"/orders/\u0000bad"}},
     {...valid,headers:{ETag:"bad\u0001value"}},
     {...valid,contentType:"application/json; charset=utf-8\u007f"},
@@ -372,6 +378,8 @@ integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", as
     assert.equal(await getCount("idempotencykit_records",txKey),0);
   }
   const tampered=[
+    {headers:'{"location":"/orders/\\u0627"}',body:valid.body,type:valid.contentType},
+    ...[204,205,206].map(status=>({headers:"{}",body:valid.body,type:valid.contentType,status})),
     {headers:'{"set-cookie":"fixture"}',body:valid.body,type:valid.contentType},
     {headers:'{"location":"bad\\u0001value"}',body:valid.body,type:valid.contentType},
     {headers:"{}",body:valid.body,type:"text/html"},
@@ -382,7 +390,7 @@ integration("unsafe replay fields and invalid UTF-8 cannot commit or replay", as
     const scope=newKey(),hash=fingerprint(2);
     const claim=await store.tryClaim(scope,hash,60_000);
     assert.equal(await store.tryComplete(scope,hash,claim.ownerToken,valid,3_600_000),true);
-    await pool.query("UPDATE idempotencykit_records SET response_headers=$2::jsonb, response_body=$3, response_content_type=$4 WHERE scope_key_hash=$1",[scope,bad.headers,bad.body,bad.type]);
+    await pool.query("UPDATE idempotencykit_records SET response_headers=$2::jsonb, response_body=$3, response_content_type=$4, response_status=$5 WHERE scope_key_hash=$1",[scope,bad.headers,bad.body,bad.type,bad.status??201]);
     await assert.rejects(()=>store.tryClaim(scope,hash,60_000));
     let called=false;
     await assert.rejects(()=>executor.execute(scope,hash,async()=>{called=true;return valid;},3_600_000));
