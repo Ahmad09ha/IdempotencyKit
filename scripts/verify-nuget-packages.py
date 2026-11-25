@@ -6,12 +6,14 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from nuget_package_identity import assembly_name, package_id, source_projects
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("feed", type=Path, help="Directory made by dotnet pack.")
 args = parser.parse_args()
 feed = args.feed.resolve()
 root = Path(__file__).resolve().parent.parent
-projects = {file.stem: file for file in (root / "dotnet" / "src").glob("*/*.csproj")}
+projects = source_projects(root)
 if len(projects) != 11:
     raise SystemExit(f"Expected eleven source library projects, found {len(projects)}.")
 versions = set()
@@ -39,11 +41,13 @@ for file in sorted(feed.glob("*.nupkg")):
             dep.attrib["id"] for dep in meta.findall(".//{*}dependency")
         }
         references = {
-            Path(ref.attrib["Include"]).stem
+            package_id((projects[name].parent / ref.attrib["Include"]).resolve())
             for ref in ET.parse(projects[name]).findall(".//ProjectReference")
         }
         assert dependencies >= references, f"{name} dropped an internal package dependency."
-        for asset in (f"lib/net10.0/{name}.dll", f"lib/net10.0/{name}.xml", "README.md"):
+        assert not any(dep.casefold() == "idempotencykit.aspnetcore" for dep in dependencies), f"{name}: old contested dependency."
+        assembly = assembly_name(projects[name])
+        for asset in (f"lib/net10.0/{assembly}.dll", f"lib/net10.0/{assembly}.xml", "README.md"):
             assert asset in assets, f"{name}: missing {asset}."
         if name in ("IdempotencyKit.Postgres", "IdempotencyKit.SqlServer", "IdempotencyKit.Sqlite"):
             migration = f"sql/{name.split('.')[-1].lower()}/001_idempotencykit_records.sql"
@@ -80,6 +84,9 @@ with tempfile.TemporaryDirectory(prefix="idk-nuget-consumer-") as directory:
     (cwd / "Program.cs").write_text("""
 using IdempotencyKit.Core;
 using IdempotencyKit.Sqlite;
+using IdempotencyKit.AspNetCore;
+if (typeof(IdempotentAttribute).Assembly.GetName().Name != "IdempotencyKit.AspNetCore")
+    throw new Exception("Standard package changed its existing assembly identity.");
 var path = Path.GetFullPath("smoke.db");
 await SqliteIdempotencyDatabase.InitializeAsync(path);
 var store = new SqliteIdempotencyStore(path);

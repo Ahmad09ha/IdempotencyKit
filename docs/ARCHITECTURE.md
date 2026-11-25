@@ -105,7 +105,7 @@ The current PostgreSQL callbacks pass the same Npgsql connection/transaction or 
 ## .NET implementation boundaries (planned)
 
 - `IdempotencyKit.Core`: pure contracts, state machine, hashing/serialization interfaces.
-- `IdempotencyKit.AspNetCore`: Minimal API endpoint filter and MVC filter/attribute; framework-specific response handling and authorization order.
+- `IdempotencyKit.AspNetCore` (NuGet ID `IdempotencyKit.AspNetCore.Standard`): Minimal API endpoint filter and MVC filter/attribute; framework-specific response handling and authorization order.
 - `IdempotencyKit.Postgres`: atomic store and compatible EF Core/shared-transaction entry point.
 - Explicit integration tests against PostgreSQL and HTTP host; test filters and actual serialization rather than only controller return objects.
 

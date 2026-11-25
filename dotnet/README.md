@@ -10,7 +10,7 @@ The solution includes scoped fingerprints, Standard-mode HTTP, a PostgreSQL tran
 - `IdempotencyKit.AspNetCore.Sqlite`: `AddSqliteTransactionalIdempotency` + `MapSqliteTransactionalPost` for authenticated transaction-aware JSON routes; file-wide busy is 503.
 - `IdempotencyKit.EntityFrameworkCore.SqlServer`: `SqlServerEfCoreTransactionalExecutor<TContext>` validates exact `SqlConnection`, enlists `UseTransactionAsync`, and auto-saves pending changes before COMMIT.
 - `IdempotencyKit.AspNetCore.SqlServer`: `AddSqlServerTransactionalIdempotency` and `MapSqlServerTransactionalPost` for authenticated SQL Server transaction-aware JSON endpoints.
-- `IdempotencyKit.AspNetCore`: database-neutral HTTP input preparation and Standard-mode endpoint middleware.
+- `IdempotencyKit.AspNetCore` (NuGet ID `IdempotencyKit.AspNetCore.Standard`): database-neutral HTTP input preparation and Standard-mode endpoint middleware.
 - `IdempotencyKit.AspNetCore.Postgres`: `MapTransactionalPost` and `AddPostgresTransactionalIdempotency` for authenticated PostgreSQL transactions.
 - `IdempotencyKit.EntityFrameworkCore.Postgres`: `PostgresEfCoreTransactionalExecutor<TContext>` verifies same connection and joins the Npgsql transaction.
 - `IdempotencyKit.Postgres.Tests`: real PostgreSQL integration tests.
