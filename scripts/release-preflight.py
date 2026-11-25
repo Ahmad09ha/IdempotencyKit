@@ -30,12 +30,15 @@ def inventory(directory, source):
     props = ET.parse(ROOT / "dotnet/src/Directory.Build.props")
     version = props.findtext(".//Version")
     assert version and re.fullmatch(r"\d+\.\d+\.\d+-preview\.\d+", version)
+    root_license = (ROOT / "LICENSE").read_bytes()
+    assert root_license.startswith(b"MIT License\n"), "Expected canonical root MIT text"
     seen = {"nuget": set(), "npm": set()}
     packages = []
     def record(registry, path, name, packed_version, license_id, private):
         assert name in (NUGET_IDS if registry == "nuget" else NPM_IDS), name
         assert name not in seen[registry], name
         assert packed_version == version, (name, packed_version, version)
+        assert license_id == "MIT", (name, "Expected MIT SPDX metadata")
         seen[registry].add(name)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         packages.append({"registry": registry, "id": name, "version": packed_version,
@@ -46,21 +49,26 @@ def inventory(directory, source):
             nuspecs = [n for n in archive.namelist() if n.endswith(".nuspec")]
             assert len(nuspecs) == 1
             meta = ET.fromstring(archive.read(nuspecs[0])).find("{*}metadata")
-            license_id = meta.findtext("{*}license")
+            license_element = meta.find("{*}license")
+            assert license_element is not None and license_element.attrib.get("type") == "expression"
+            license_id = license_element.text
+            assert archive.read("LICENSE") == root_license, f"{p.name}: mismatched license"
             record("nuget", p, meta.findtext("{*}id"), meta.findtext("{*}version"), license_id, None)
     for p in sorted((directory / "npm").glob("*.tgz")):
         with tarfile.open(p, "r:gz") as archive:
             meta = json.load(archive.extractfile("package/package.json"))
+            assert archive.extractfile("package/LICENSE").read() == root_license, f"{p.name}: mismatched license"
             record("npm", p, meta["name"], meta["version"], meta.get("license"), meta.get("private", False))
     assert seen["nuget"] == NUGET_IDS and seen["npm"] == NPM_IDS, "Missing or extra package IDs"
-    # This preflight may inventory unlicensed private preview artifacts. It does
-    # not certify that the family is legally distributable or registry-publishable.
+    # Verify project MIT metadata/text on every archive. This is not a legal
+    # audit of third-party rights or proof of registry ownership/authorization.
     manifest = {"source_sha": source, "version": version, "purpose": "no-publish-preview",
                 "packages": sorted(packages, key=lambda p: (p["registry"], p["id"]))}
     emit(directory / "release-manifest.json", manifest)
     (directory / "SHA256SUMS").write_text("".join(
         f"{p['sha256']}  {p['file']}\n" for p in manifest["packages"]), encoding="utf-8")
     print(f"IDK_RELEASE_INVENTORY {version} {source} {len(packages)} verified archives")
+    print("IDK_LICENSE_VERIFIED MIT 19/19 archives, exact root license text")
 
 def registry(directory):
     manifest = load_json(directory / "release-manifest.json")

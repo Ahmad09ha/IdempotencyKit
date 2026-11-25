@@ -325,3 +325,7 @@ See [Transactional Mode v1](../spec/TRANSACTIONAL_MODE_V1.md), [Guarantees](../s
 ## 2026-11-25 — Final release readiness
 
 [PR #17](https://github.com/Ahmad09ha/IdempotencyKit/pull/17), merged `88f593f`: all nine source-head workflows passed, including [real wire, isolated ENOSPC and time-based soak](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45611565795). See [observed final readiness evidence](FINAL_RELEASE_READINESS.md) for 591,092 measured attempts, actual storage faults, durable recovery and limitations. No registry publication or independent audit.
+
+## 2026-11-25 — Distribution preflight and license decision
+
+[PR #18](https://github.com/Ahmad09ha/IdempotencyKit/pull/18) merged as `6db9679` after nine workflows passed. [Package preview CI](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45614664107) retained 19 verified archives and generated a source manifest/checksums. Public registry metadata returned 18 not-publicly-found names and one existing NuGet ID (`IdempotencyKit.AspNetCore`), with no candidate versions found and no unknown responses. These observations do not prove registry availability or ownership. Maintainer approved MIT; the current change adds exact archive license assertions and retains the no-publish gate. Independent security and third-party rights review, ownership resolution and publication are open. Older dated evidence above reflects its own historical state.

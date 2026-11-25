@@ -18,7 +18,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "description": "Scoped request identity, SHA-256 fingerprints and idempotency contracts.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",

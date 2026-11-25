@@ -1,5 +1,7 @@
 # Provider quick start — unpublished preview
 
+Licensed under [MIT](../LICENSE). The registry IDs in this guide are current **candidate** IDs, not published packages; one NuGet ID needs ownership resolution (see [release guide](RELEASING.md)).
+
 Choose a mode **before** wiring a route. Standard mode coordinates a claim and a separately executed handler; lease loss is uncertain and is not automatically retried. Transactional mode atomically stores the result with business SQL **on the supplied connection/transaction**. External payment/email/message side effects are outside that transaction. Do not stack Standard annotations on a Transactional endpoint.
 
 ## Choose the supported packages

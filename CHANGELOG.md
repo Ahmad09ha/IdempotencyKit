@@ -2,6 +2,8 @@
 
 ## Unreleased — 0.1.0-preview.1 candidate
 
+- Adopted the MIT license with matching SPDX metadata and license text in the NuGet and npm distribution artifacts. Registry ownership and publication approval remain separate release gates.
+
 - Two independent implementations of scoped request hashes, Standard-mode HTTP, and explicit transaction-based HTTP APIs.
 - PostgreSQL, SQL Server 2022 and single-host local SQLite: store/executor, ASP.NET Core and NestJS Express transactional adapters, and provider-specific .NET EF Core 10 bridges.
 - Preview build/pack and independent package install checks for .NET 10 and Node 24; this is not a published release.

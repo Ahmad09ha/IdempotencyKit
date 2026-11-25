@@ -8,11 +8,16 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>idempotency;http;retries;transactions</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 IdempotencyKit contributors</Copyright>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- XML includes documented APIs; existing undocumented members are not a build warning. -->
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)../../docs/PACKAGE_README.md" Pack="true" PackagePath="README.md" />
+    <!-- Extensionless NuGet pack paths are interpreted as directories.
+         An empty PackagePath places the original LICENSE at the archive root. -->
+    <None Include="$(MSBuildThisFileDirectory)../../LICENSE" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

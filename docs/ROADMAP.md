@@ -9,7 +9,8 @@
 - [ ] Review and freeze key validation, request scoping and fingerprint algorithm.
 - [ ] Decide open questions: JSON canonicalization, error schema, retention/replay policy, uncertain outcomes.
 - [x] Add shared golden vectors for scoped identity and request fingerprinting; run both languages against them.
-- [ ] Owner chooses a repository license and approves the public v1 contract (preview version and release process are documented).
+- [x] Owner selects MIT for repository licensing (2026-11-25).
+- [ ] Owner approves the final public v1 contract after preview feedback (preview version and release process are documented).
 
 **Exit:** a reviewable v1 protocol/spec with test fixtures and explicit exclusions.
 
@@ -135,7 +136,7 @@ See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
 - [x] NuGet preview artifacts with .NET 10, XML docs, metadata, provider migrations and standalone consumer smoke.
 - [x] npm preview tarballs, Node 24 ESM, TypeScript declarations, documented NestJS peers and standalone consumer smoke.
 - [x] Provide runnable examples, versioned migrations, preview SemVer/changelog and no-publish package automation.
-- [ ] Configure trusted publishing after maintainer approval and package/scope ownership checks.
+- [ ] Resolve existing public NuGet ID `IdempotencyKit.AspNetCore` and verify all package/scope ownership; configure trusted publishing only after maintainer approval.
 - [ ] Public release only after explicit safety review and validation.
 
 ## Suggested initial choices

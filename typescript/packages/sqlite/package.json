@@ -26,7 +26,7 @@
     "node": ">=24.0.0"
   },
   "description": "Local-file SQLite Standard and Transactional idempotency on Node 24.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ahmad09ha/IdempotencyKit.git",
