@@ -1,0 +1,31 @@
+name: NuGet Trusted Publishing - Connection Check
+
+# Intentionally no push, tag, schedule, pull_request or automatic publish trigger.
+# The NuGet policy already references this exact filename and environment.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nuget-trusted-connection
+  cancel-in-progress: false
+
+jobs:
+  verify-connection:
+    name: Verify OIDC exchange without publishing
+    if: github.repository == 'Ahmad09ha/IdempotencyKit' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: nuget-release
+    permissions:
+      id-token: write
+    steps:
+      # Official NuGet/login v1.2.0, pinned to the verified release commit.
+      - name: Request temporary scoped NuGet credential
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841
+        with:
+          user: AhmadHasan
+      # No checkout, third-party build, artifact transfer, token printing, or push.
+      - name: Report connection status
+        run: echo "NuGet OIDC exchange succeeded. No package was published."
