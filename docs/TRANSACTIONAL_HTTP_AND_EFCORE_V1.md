@@ -19,7 +19,7 @@ This milestone builds on [the explicit Transactional Mode executor](../spec/TRAN
 Keeping transport- and persistence-specific code in distinct packages is deliberate, so future SQL Server and SQLite adapters can reuse fingerprinting and HTTP concepts without depending on Npgsql.
 
 - `IdempotencyKit.Core`: scoped identities, canonical request fingerprints, storage contracts.
-- `IdempotencyKit.AspNetCore`: database-neutral authenticated HTTP request preparation and Standard-mode integration.
+- `IdempotencyKit.AspNetCore.Standard` (NuGet ID; assembly/namespace `IdempotencyKit.AspNetCore`): database-neutral authenticated HTTP request preparation and Standard-mode integration.
 - **`IdempotencyKit.AspNetCore.Postgres`:** transactional POST endpoint mapping and PostgreSQL executor DI registration.
 - **`IdempotencyKit.EntityFrameworkCore.Postgres`:** fresh EF Core DbContext factory, verified shared Npgsql connection, `UseTransactionAsync` and `SaveChangesAsync`.
 - `IdempotencyKit.Postgres`: Npgsql transaction executor + Standard-mode store.

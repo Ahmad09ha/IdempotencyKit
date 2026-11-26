@@ -40,7 +40,7 @@ Use a NuGet.org account that owns the package IDs. For a first manual preview, c
 Publish in dependency order:
 
 1. `IdempotencyKit.Core`.
-2. `IdempotencyKit.AspNetCore` and the three provider cores `IdempotencyKit.Postgres`, `IdempotencyKit.SqlServer`, `IdempotencyKit.Sqlite`.
+2. `IdempotencyKit.AspNetCore.Standard` and the three provider cores `IdempotencyKit.Postgres`, `IdempotencyKit.SqlServer`, `IdempotencyKit.Sqlite`.
 3. The three `IdempotencyKit.EntityFrameworkCore.<Provider>` and three `IdempotencyKit.AspNetCore.<Provider>` packages.
 
 For each reviewed artifact, starting with core:
@@ -56,7 +56,7 @@ Wait for validation/indexing and confirm the version on NuGet.org before install
 dotnet package add IdempotencyKit.AspNetCore.Sqlite --version 0.1.0-preview.1
 ~~~
 
-For EF Core, also add the separate `IdempotencyKit.EntityFrameworkCore.Sqlite` package if needed. PostgreSQL/SQL Server have equivalent packages. For Standard mode, choose `IdempotencyKit.AspNetCore` and the desired provider core instead. Run the provider migration using your deployment process; package installation alone is not a database migration.
+For EF Core, also add the separate `IdempotencyKit.EntityFrameworkCore.Sqlite` package if needed. PostgreSQL/SQL Server have equivalent packages. For Standard mode, choose `IdempotencyKit.AspNetCore.Standard` and the desired provider core instead. The C# namespace and assembly are still `IdempotencyKit.AspNetCore`. Run the provider migration using your deployment process; package installation alone is not a database migration.
 
 ## 5. Publish npm (NestJS)
 
@@ -105,6 +105,8 @@ Sources: [NuGet trusted publishing](https://learn.microsoft.com/en-us/nuget/nuge
 
 The maintainer explicitly approved MIT on 2026-11-25. Original project code and documentation are licensed under the [MIT License](../LICENSE) with the collective copyright notice `Copyright (c) 2026 IdempotencyKit contributors`, consistent with the existing package author metadata. MIT allows commercial use, modification and redistribution subject to retaining the copyright and permission notices; it disclaims warranties. It does not relicense third-party dependencies or imply that third-party permissions or independent security review have been audited.
 
-## 8. Registry name collision — publication blocked
+## 8. Approved candidate identity — publication blocked
 
-The [verified public registry preflight](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45614664107) reported one existing public NuGet ID, `IdempotencyKit.AspNetCore`; the other ten NuGet IDs and all eight npm names were not publicly found. None of the candidate versions were found. The registry metadata alone does not identify who can publish. Verify the existing ID under the intended account, or approve a new package identity/namespace strategy. Do not publish a subset, overwrite an existing version, or silently change package IDs. The npm scope also requires actual account/organization ownership. Keep library `private: true`, registry writes disabled, and version `0.1.0-preview.1` until these decisions and release gates are resolved. The project name and all APIs remain unchanged.
+The [verified public registry preflight](https://github.com/Ahmad09ha/IdempotencyKit/actions/runs/45614664107) reported one existing public NuGet ID, `IdempotencyKit.AspNetCore`; the other ten NuGet IDs and eight npm names were not publicly found. The maintainer approved `IdempotencyKit.AspNetCore.Standard` as the alternative if the old name is not theirs. Actual ownership could not be established from public metadata. This branch prepares the safer alternative for review rather than assuming the right to publish under the existing name.
+
+The only identity change is the Standard HTTP NuGet `PackageId`. The source directory, project references, CLR assembly (`IdempotencyKit.AspNetCore.dll`), root namespace, public APIs, all other package IDs and version stay unchanged. Verify the real nuspec dependencies of all three transactional HTTP adapters, absence of the old dependency in every artifact, license text and isolated consumer restore. Registry metadata is rechecked on the candidate build; a 404 does not reserve a name. The npm scope and actual NuGet publishing rights still require account-side confirmation. Keep library `private: true`, registry writes disabled, and version `0.1.0-preview.1` pending release approval and ownership/security gates.

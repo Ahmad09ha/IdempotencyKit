@@ -19,7 +19,7 @@
 
 ~~~text
 IdempotencyKit.Core                             # shared hashes + contracts
-IdempotencyKit.AspNetCore                       # Standard-mode HTTP core
+IdempotencyKit.AspNetCore.Standard              # Standard-mode HTTP core (NuGet ID only)
 IdempotencyKit.Postgres                         # implemented
 IdempotencyKit.EntityFrameworkCore.Postgres     # implemented
 IdempotencyKit.AspNetCore.Postgres               # implemented

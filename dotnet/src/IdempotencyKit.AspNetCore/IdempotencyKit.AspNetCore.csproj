@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <!-- Registry identity only: preserve the existing assembly/project/namespace. -->
+    <PackageId>IdempotencyKit.AspNetCore.Standard</PackageId>
     <Description>Database-independent ASP.NET Core Standard-mode HTTP and request identity preparation.</Description>
   </PropertyGroup>
   <ItemGroup>

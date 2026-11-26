@@ -2,6 +2,8 @@
 
 ## Unreleased — 0.1.0-preview.1 candidate
 
+- Prepare `IdempotencyKit.AspNetCore.Standard` as the Standard HTTP NuGet identity to avoid the existing public ID. No assembly, C# namespace, API, version or other package identity changes.
+
 - Adopted the MIT license with matching SPDX metadata and license text in the NuGet and npm distribution artifacts. Registry ownership and publication approval remain separate release gates.
 
 - Two independent implementations of scoped request hashes, Standard-mode HTTP, and explicit transaction-based HTTP APIs.

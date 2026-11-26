@@ -136,7 +136,7 @@ See [SQLite EF Core + HTTP v1](SQLITE_EFCORE_HTTP_V1.md).
 - [x] NuGet preview artifacts with .NET 10, XML docs, metadata, provider migrations and standalone consumer smoke.
 - [x] npm preview tarballs, Node 24 ESM, TypeScript declarations, documented NestJS peers and standalone consumer smoke.
 - [x] Provide runnable examples, versioned migrations, preview SemVer/changelog and no-publish package automation.
-- [ ] Resolve existing public NuGet ID `IdempotencyKit.AspNetCore` and verify all package/scope ownership; configure trusted publishing only after maintainer approval.
+- [ ] Verify alternative candidate NuGet ID `IdempotencyKit.AspNetCore.Standard`, actual package/scope ownership and approve publication; configure trusted publishing only after maintainer approval.
 - [ ] Public release only after explicit safety review and validation.
 
 ## Suggested initial choices

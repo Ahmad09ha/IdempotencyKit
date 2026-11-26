@@ -13,7 +13,9 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parent.parent
-NUGET_IDS = {p.stem for p in (ROOT / "dotnet/src").glob("*/*.csproj")}
+from nuget_package_identity import source_projects
+
+NUGET_IDS = set(source_projects(ROOT))
 NPM_IDS = {json.loads(p.read_text(encoding="utf-8"))["name"]
            for p in (ROOT / "typescript/packages").glob("*/package.json")}
 assert len(NUGET_IDS) == 11 and len(NPM_IDS) == 8

@@ -23,7 +23,7 @@ Packages can be built and packed locally as preview artifacts; they are not publ
 
 ## ASP.NET Core 10
 
-Reference `IdempotencyKit.Core`, `IdempotencyKit.Postgres` and `IdempotencyKit.AspNetCore`. Register the store as an application service and middleware **after authorization but before routing to endpoint execution**:
+Reference `IdempotencyKit.Core`, `IdempotencyKit.Postgres` and `IdempotencyKit.AspNetCore.Standard` (the C# namespace is `IdempotencyKit.AspNetCore`). Register the store as an application service and middleware **after authorization but before routing to endpoint execution**:
 
 ~~~csharp
 using System.Security.Claims;

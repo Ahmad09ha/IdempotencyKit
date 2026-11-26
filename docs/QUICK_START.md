@@ -1,6 +1,6 @@
 # Provider quick start — unpublished preview
 
-Licensed under [MIT](../LICENSE). The registry IDs in this guide are current **candidate** IDs, not published packages; one NuGet ID needs ownership resolution (see [release guide](RELEASING.md)).
+Licensed under [MIT](../LICENSE). The registry IDs in this guide are current **candidate** IDs, not published packages; the Standard NuGet ID is the approved alternative candidate, pending registry/account verification (see [release guide](RELEASING.md)).
 
 Choose a mode **before** wiring a route. Standard mode coordinates a claim and a separately executed handler; lease loss is uncertain and is not automatically retried. Transactional mode atomically stores the result with business SQL **on the supplied connection/transaction**. External payment/email/message side effects are outside that transaction. Do not stack Standard annotations on a Transactional endpoint.
 
@@ -14,7 +14,7 @@ All packages currently build as local `0.1.0-preview.1` artifacts; no NuGet/npm 
 | SQL Server (CI: 2022) | `IdempotencyKit.AspNetCore.SqlServer` | `@idempotencykit/nestjs-sqlserver` | `IdempotencyKit.SqlServer`, `@idempotencykit/sqlserver`, `IdempotencyKit.EntityFrameworkCore.SqlServer` |
 | SQLite (single host/local file) | `IdempotencyKit.AspNetCore.Sqlite` | `@idempotencykit/nestjs-sqlite` | `IdempotencyKit.Sqlite`, `@idempotencykit/sqlite`, `IdempotencyKit.EntityFrameworkCore.Sqlite` |
 
-For Standard HTTP, select `IdempotencyKit.AspNetCore` or `@idempotencykit/nestjs` plus the corresponding provider core. Shared identity only: `IdempotencyKit.Core` or `@idempotencykit/core`. Do not install every provider.
+For Standard HTTP, select `IdempotencyKit.AspNetCore.Standard` (C# namespace: `IdempotencyKit.AspNetCore`) or `@idempotencykit/nestjs` plus the corresponding provider core. Shared identity only: `IdempotencyKit.Core` or `@idempotencykit/core`. Do not install every provider.
 
 ## Initialize storage and start integration
 
